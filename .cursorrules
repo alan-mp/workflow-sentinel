@@ -9,7 +9,8 @@ Project
 Never
 - Never let a requester decide their own request, in any code path.
 - Never allow a flow definition where a path finishes without a human approval.
-- Never give the AI drafter a way to activate a flow or decide a task; it edits drafts only.
+- Never give the AI (drafter or briefing) a way to activate a flow, decide a task, or change routing; it edits drafts and writes text only.
+- Never show anomaly flags to the requester; flags come from deterministic engine rules, not from the model.
 - Never update or delete rows in audit_events, or change an active flow version.
 - Never store a superior or approver per person; compute it from org_units and the authority matrix.
 - Never swallow a rule evaluation error to fall through to another rule; fail closed.

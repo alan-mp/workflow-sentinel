@@ -1,6 +1,17 @@
 # Sentinel: Technical specification
 
-Companion to [PRD.md](PRD.md) and [architecture.md](architecture.md). Feature numbers (F1–F10) refer to the PRD.
+Companion to [PRD.md](PRD.md) and [architecture.md](architecture.md). Feature numbers (F1–F13) refer to the PRD.
+
+## The five spec elements
+| Element | Where | In short |
+|---|---|---|
+| 1. AI capability | [§4 AI module design](#4-ai-module-design) | Generation (SOP to flow draft), summarisation (approver briefing), classification (anomaly flags explained by AI) |
+| 2. Inputs | [§3 Interfaces](#3-interfaces), [§4](#4-ai-module-design) | HTTP and MCP requests, SOP text, form data, organization data; per AI module in §4 |
+| 3. Outputs | [§3](#3-interfaces), [§4](#4-ai-module-design) | JSON responses, stored state and audit events, webhooks; per AI module in §4 |
+| 4. Acceptance criteria | [§5](#5-acceptance-criteria-and-where-they-are-tested) | One testable criterion per PRD feature, each mapped to its automated test |
+| 5. System architecture | [§1](#1-system-overview), [architecture.md](architecture.md) | UI, backend, AI layer, storage, and data flow |
+
+The spec was revised after review; the changes are listed in [§7](#7-revisions-after-review).
 
 ## 1. System overview
 One Cloudflare Worker serves the React app as static assets and handles `/api/*`, `/mcp`, and the OAuth endpoints.
@@ -29,7 +40,9 @@ resulting state, audit events, and notifications in one transaction. See [archit
 
 A flow definition has three parts: `fields` (the request form), `tables` (first-match rule tables), and `steps`
 (approval, condition, parallel, notify). An approver is one of: superior N levels up, head of the requester's unit at a
-level, holders of an authority, a named user, or a rule table. Examples are in `packages/engine/examples/`.
+level, holders of an authority, a named user, or a rule table. Conditions compare form fields, or two built-in facts
+about the requester read from the organization tree: `requester.department` and `requester.head_of_level` (the level
+of the unit the requester heads, such as `divisi`, or empty). Examples are in `packages/engine/examples/`.
 
 ## 3. Interfaces
 **HTTP API** (JSON, cookie session; all under `/api`):
@@ -85,7 +98,29 @@ registration: `/authorize`, `/oauth/token`, `/oauth/register`, metadata under `/
 through AI Gateway. The model must call a single tool, `propose_draft`, with a complete definition and citations; the
 result is validated before it is stored, and validation errors are returned to the model to fix.
 
-## 4. Acceptance criteria and where they are tested
+## 4. AI module design
+Sentinel has three AI capabilities. In all of them the model only returns text or a proposed draft: it has no tool
+that can activate a flow, decide a task, or change routing, and every output passes the same checks as human input.
+All calls go through the Worker `AI` binding and the Cloudflare AI Gateway `internal-apps` (Unified Billing, no key in
+the Worker); the gateway logs each call with its cost and can cap spending.
+
+| | Flow drafter (generation) | Request briefing (summarisation) | Anomaly flags (classification) |
+|---|---|---|---|
+| Used by | Process owners, in the flow editor chat | Approvers and requesters, on the request detail | Approvers only, on the request detail and inbox |
+| Trigger | A chat message on a draft | Filing or resubmitting a request | Filing or resubmitting a request |
+| Input | SOP text, the current draft definition, authority names, the chat history, the message. No employee data | Flow name, form labels and values, requester name, title and unit, approver names per step, attachment names, worded flags | The request, and the same flow's requests of the last 180 days |
+| Model | Claude Opus 5.5, adaptive thinking, tool `propose_draft` | Claude Sonnet 5.5, low effort, JSON-schema output | Deterministic rules in `packages/engine/src/anomaly.ts`; the explanation comes from the briefing model |
+| Output | A reply, and optionally a complete definition with one citation per step, condition and rule row | `{ summary, anomaly_note }`: 2–4 sentences for everyone, plus 1–2 sentences on the flags for approvers | Flags `split_below_threshold`, `amount_outlier`, `duplicate`, each with a sentence and related request IDs |
+| Checks on the output | `validateDefinition` (no path without a human approval, valid references, compilable rules); errors are returned to the model to fix, up to 4 rounds. Each quote must be an exact substring of the SOP after whitespace and case normalisation, or it is marked unverified | Must be valid JSON with a non-empty summary; the prompt treats request text as data, forbids recommending a decision, and keeps flags out of the summary | Limits are read from the flow's own conditions; only money fields (amount, nominal, harga, Rp, ...) are checked; at least 5 earlier requests before judging "usual" |
+| When it fails | The chat shows "The AI service is having problems. Try again."; the draft is unchanged | The request is unaffected; the panel says no summary is available; cron retries up to 3 times | Not applicable: no external call |
+| Stored | `chat_messages`, the draft's `citations` | `request_insights` | `request_insights` and an `anomalies_flagged` audit event |
+| Measured on the live app | 7–30 s per drafting turn | 4–8 s after filing | Immediate |
+| Acceptance (PRD) | F4 | F12 | F13 |
+
+The drafter's prompt also tells it to ask instead of guessing when the SOP is ambiguous or a rule is missing, and to
+reply in the user's language while keeping quotes, role names and ids unchanged.
+
+## 5. Acceptance criteria and where they are tested
 | Feature | Criterion | Automated test |
 |---|---|---|
 | F1 | Valid request opens the first task; invalid data is rejected | `packages/engine/test/engine.test.ts`, `apps/api/test/api.test.ts` (request lifecycle) |
@@ -98,15 +133,18 @@ result is validated before it is stored, and validation errors are returned to t
 | F8 | One reminder, escalation never adds the requester | `packages/engine/test/sla.test.ts` |
 | F9 | Audit rows and active versions are immutable | `packages/engine/test/audit.test.ts`, `apps/api/test/api.test.ts` (audit in database) |
 | F10 | MCP round trip with OAuth; forbidden calls return 403 | Manual end-to-end check against the live URL (not yet automated; tracked as a v2 issue) |
+| F11 | API key required; request filed by another system follows the same flow; duplicate `externalRef` is not created twice; signed webhook on the final outcome; failed delivery retried; revoked key rejected | `apps/api/test/api.test.ts` (integrations) |
 | F12 | Briefing is written after filing, uses form labels and names, and is retried after a failure | `apps/api/test/api.test.ts` (AI summary and anomaly flags) |
 | F13 | Split below a limit, outlier, duplicate; limits read from the flow; no flags for non-money numbers; requester never sees flags | `packages/engine/test/anomaly.test.ts`, `apps/api/test/api.test.ts` |
-| F11 | API key required; request filed by another system follows the same flow; duplicate `externalRef` is not created twice; signed webhook on the final outcome; failed delivery retried; revoked key rejected | `apps/api/test/api.test.ts` (integrations) |
 
 Rule evaluation has a parity test: over 40,000 combinations of operators and values give the same result as the
 reference semantics (`rules.test.ts`).
 
-## 5. Test and deployment plan
-- `npm run typecheck`, `npm test` (107 tests), and `npm run build` must pass locally and in CI.
+## 6. Test and deployment plan
+- `npm run typecheck`, `npm test` (130 tests), and `npm run build` must pass locally and in CI.
+- Before release, scripted scenario tests run in a real browser against the live test environment, one recorded video
+  per group: routing and controls, organization changes, AI features, and integration (66 checks on 21 November 2026;
+  every failure was fixed and retested).
 - GitHub Actions (`.github/workflows/ci.yml`): every push and pull request runs audit, typecheck, tests, and build.
 - Deployment is manual: `npm run deploy:test` builds the web app and deploys the Worker; D1 migrations are applied
   with `wrangler d1 migrations apply`. The Cloudflare account is read from `CLOUDFLARE_ACCOUNT_ID`, and no cloud
@@ -115,7 +153,7 @@ reference semantics (`rules.test.ts`).
 - Monitoring: Workers observability is enabled (logs and request traces in the Cloudflare dashboard); AI usage and
   cost are visible per request in AI Gateway.
 
-## 6. Revisions after review
+## 7. Revisions after review
 The first version of this design was reviewed against real organization data and by the product owner. Changes made:
 
 | Original design | Finding in review | Revision |
@@ -127,4 +165,5 @@ The first version of this design was reviewed against real organization data and
 | AI through a provider key stored as a Worker secret | A stored key is avoidable on Workers | AI binding plus AI Gateway; no key or token is stored |
 | Results pushed only to the ERP through a fixed adapter | Validation showed approval logic scattered across applications; other systems need to hand requests in and learn the outcome | Inbound API with per-system keys and signed outbound webhooks; approval rules stay only in Sentinel |
 | Any number of drafts per flow, each copied from the newest version | A real browser test showed a second draft silently inheriting the first draft's unreviewed changes | One open draft per flow; a new draft always starts from the newest approved version |
+| Coverage test tried every approval step for every person | After the division-head leave rule, it reported paths a requester can never take | Branches decided by requester facts, and branches shadowed by an earlier looser branch, are skipped |
 | Indonesian UI | Product owner asked for professional English | All screens and messages translated; data entered by users is left as written |

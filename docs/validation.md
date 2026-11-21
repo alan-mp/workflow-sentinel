@@ -11,8 +11,8 @@ in every system.
 ## Verdict: go to pilot
 
 The problem, the people who have it, its size, and the gap are supported by evidence from three independent kinds
-of source. What is not yet shown is behaviour: no request has run through Sentinel in real use. The next step is
-therefore the pilot in step 6, not more building.
+of source. What is not yet shown is behaviour: colleagues on the IT team have tried it, but no business request has
+run through Sentinel in real use. The next step is therefore the pilot in step 6, not more building.
 
 | # | Step | Reading | Basis |
 |---|---|---|---|
@@ -150,7 +150,7 @@ fast and may be better left where it is.
 
 **Why us**
 - The same IT team holds the source code of the in-house applications that have to be connected.
-- The application exists, is deployed, and has 107 automated tests.
+- The application exists, is deployed, and has 130 automated tests and a recorded browser scenario test.
 - The team has read access to the data that shows where approvals are slow.
 
 **Weak points:** one developer, part time; management knows about the initiative but has not formally mandated it.
@@ -158,8 +158,11 @@ fast and may be better left where it is.
 ## 6. Design a Cheap Test
 *Testing: People will change their behaviour (and pay) for a solution to this problem*
 
-Nothing has been tested in real use yet. The owner chose three flows that together exercise the three hard parts:
-a long chain, a second in-house module, and an outside system.
+No business request has run through Sentinel yet. Two smaller checks have: colleagues on the IT team tried the
+application (their feedback: it is much clearer who approves a request and why, and the AI is very helpful), and a
+scripted scenario test in a real browser covered routing, organization changes, the AI features and integration.
+Neither shows that requesters and approvers outside IT will change how they work. The owner chose three pilot flows
+that together exercise the three hard parts: a long chain, a second in-house module, and an outside system.
 
 | Pilot flow | What it tests | Baseline today |
 |---|---|---|
@@ -191,6 +194,9 @@ and ask unit heads whether the computed approver is the right one; and five shor
 | People keep using chat and the old screens | Medium | Pilot one flow at a time and switch the old screen off for it | Usage share in the pilot |
 | The AI drafts a wrong rule and the reviewer accepts it | Medium | Machine-checked citations, validation, simulation, activation as a separate human step | Error count on real SOPs |
 | A ready-made tool would have covered the need at lower total cost | Medium | Side-by-side trial of one tool on the company's real cases before wider rollout | The trial result and a quote |
+
+**Open policy decision:** the Director has no superior, so a request filed by the Director has no approval path. The
+coverage test flags it; who approves the Director's own requests has not been decided yet.
 
 No condition was found that makes the idea unworkable. The first risk is the one that could: if nobody decides
 which structure is correct, no software can compute the right approver.
@@ -224,7 +230,7 @@ Each source was re-opened and its quote matched before it was listed.
   check it.
 - The interview is with one person, the project owner in IT. It is first-hand for how changes are handled and
   second-hand for what requesters and approvers experience.
-- Nothing has run through Sentinel in real use. Step 6 is a design.
+- No business request has run through Sentinel. Only the IT team has tried it; step 6 is a design.
 - Ready-made tools were assessed from documentation only.
 - The readings in the verdict table are the author's, made from the evidence shown here, not an independent
   scoring.

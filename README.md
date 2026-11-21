@@ -3,8 +3,11 @@
 [![CI](https://github.com/alan-mp/workflow-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/alan-mp/workflow-sentinel/actions/workflows/ci.yml)
 
 Sentinel is an approval-workflow web application that puts a company's approval rules in one place instead of in
-every internal system. The people who own an SOP turn it into a working, versioned approval flow with help from an AI
-drafter that cites the SOP for every rule. Approvers are computed from the organization structure, and every assignment and decision is recorded with its reason.
+every internal system. Approvers are computed from the organization structure, and every assignment and decision is
+recorded with its reason. It has three AI features: a **flow drafter** that turns an SOP into a versioned flow and cites
+the SOP for every rule, a **briefing** that summarises each new request for the approver, and **anomaly flags** (a
+purchase split below an approval limit, an unusual amount, a duplicate) explained by AI. The AI drafts and explains;
+people decide.
 
 **Live demo:** https://workflow-sentinel-test.developer-24e.workers.dev
 
@@ -48,8 +51,9 @@ The demo runs on sample data. Demo flow and step names are in Indonesian because
 |---|---|
 | [docs/validation.md](docs/validation.md) | 7-step idea validation: verdict, measured evidence, owner interview, pilot design, risk register |
 | [docs/PRD.md](docs/PRD.md) | One-page product requirements with acceptance criteria |
-| [docs/spec.md](docs/spec.md) | Data model, interfaces, acceptance tests, deployment, revisions after review |
-| [docs/architecture.md](docs/architecture.md) | Architecture diagram and design decisions |
+| [docs/spec.md](docs/spec.md) | The five spec elements: AI module design, inputs, outputs, acceptance criteria mapped to tests, architecture; revisions after review |
+| [docs/reflection.md](docs/reflection.md) | One-page reflection: lessons, challenges, next version |
+| [docs/architecture.md](docs/architecture.md) | Architecture (UI, backend, AI layer, storage), data flow, design decisions, security |
 | [CLAUDE.md](CLAUDE.md), [.cursorrules](.cursorrules) | Rules for AI coding assistants working in this repository |
 | [apps/web/PRODUCT.md](apps/web/PRODUCT.md), [apps/web/DESIGN.md](apps/web/DESIGN.md) | Product context and design system (Indonesian) |
 
@@ -75,7 +79,7 @@ npm run dev          # http://localhost:8787
 
 ```bash
 npm run typecheck    # TypeScript, all packages
-npm test             # 107 unit and API tests
+npm test             # 130 unit and API tests
 npm run build        # production build of the web app
 ```
 

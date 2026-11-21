@@ -1,25 +1,46 @@
 # Architecture notes
 
 ```
-Browser (React SPA)          MCP client (Claude, etc.)
-        │  /api/*  cookie session        │  /mcp  OAuth bearer token
-        ▼                                ▼
-┌───────────────────────── Cloudflare Worker ─────────────────────────┐
-│ worker.ts   OAuth provider ── /authorize consent page (authorize.ts) │
-│             └─ mcp.ts: 42 tools, each calls the API in-process       │
-│ index.ts    Hono API: auth, requests, admin (flows), org             │
-│ ai.ts       AI drafter ── AI binding ── AI Gateway ── Claude         │
-│ cron        every 15 min: apply due org changes, SLA reminders       │
-└───────────────┬───────────────┬───────────────┬─────────────────────┘
-                ▼               ▼               ▼
-        D1 (SQLite)        R2 (attachments)   KV (OAuth grants)
+ UI                             Other internal systems          AI assistants
+ React SPA (browser, phone)     HR app, ERP, ...                Claude and other MCP clients
+   │ /api/*  session cookie       │ /api/integrations  API key     │ /mcp  OAuth bearer token
+   ▼                              ▼                                ▼
+┌──────────────────────────────── Cloudflare Worker ─────────────────────────────────┐
+│ BACKEND   index.ts      Hono API: sessions, requests, inbox, flows, org, admin     │
+│           integrations  inbound API (per-system keys) · outbound signed webhooks   │
+│           mcp.ts        42 tools, each calls the same API in-process as the user   │
+│           cron          every 15 min: org changes, SLA, webhook and AI retries     │
+│ DOMAIN    packages/engine (pure, no I/O): definitions, rules (json-rules-engine),  │
+│           approver resolution from the org tree, state machine, SLA, simulation,   │
+│           coverage test, anomaly rules                                             │
+│ AI LAYER  ai.ts  flow drafter (generation) · request briefing (summarisation)      │
+│           insights.ts  anomaly flags (deterministic) + AI explanation              │
+└───────┬────────────────┬────────────────┬──────────────────┬──────────────────────┘
+        ▼                ▼                ▼                  ▼
+   D1 (SQLite)      R2 attachments    KV OAuth grants    AI binding → AI Gateway → Claude
+                                                         (no key in the Worker; usage logged and capped)
 ```
+
+## Data flow
+1. **Filing a request** (web app, MCP, or another system's API call): the Worker loads the active flow version and
+   the organization tree, the engine computes the approvers and the first tasks, and the state, tasks, audit events
+   and notifications are written to D1 in one batch. The anomaly rules run against the flow's recent requests and
+   their flags are stored with an audit event. The response returns; the AI briefing is then written in the
+   background (`ctx.waitUntil`) and stored.
+2. **Deciding a task**: the engine checks separation of duties and delegation, records the decision, and opens the
+   next steps. When a request finishes, webhook deliveries are queued and the first attempt runs in the background;
+   cron retries failures with backoff.
+3. **Drafting a flow**: the process owner's message, the SOP and the current draft go to the drafter; its proposal is
+   validated, its quotes are checked against the SOP, and only then is the draft updated. Activation is a separate
+   human step by a second owner.
+4. **Changing the organization**: an owner proposes, a second owner approves, the change applies on its date, and
+   open tasks are recomputed and moved with an audit event.
 
 ## Packages
 | Package | Responsibility |
 |---|---|
 | `packages/engine` | Pure domain logic with no I/O: flow definition schema, validation, rule evaluation, approver resolution from the organization tree, request state machine, SLA, simulation, coverage test |
-| `apps/api` | Cloudflare Worker: HTTP API, persistence, AI drafter, MCP server, OAuth consent, cron |
+| `apps/api` | Cloudflare Worker: HTTP API, persistence, AI drafter and briefing, integrations, MCP server, OAuth consent, cron |
 | `apps/web` | React single-page app served as static assets by the same Worker |
 
 ## Decisions and why

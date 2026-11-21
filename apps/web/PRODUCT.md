@@ -15,22 +15,22 @@ Karyawan kantor internal, ratusan orang saat dipakai penuh. Perangkatnya campura
 - **Atasan langsung:** dapat membuat delegasi atas nama bawahan yang berhalangan.
 - **Pemilik proses:** menyusun, mensimulasikan, dan meninjau versi alur miliknya di desktop. Draf harus diaktifkan oleh pemilik lain di alur yang sama.
 - **Pemilik master organisasi (HR dan direksi):** mengusulkan dan meninjau perubahan unit, kepala unit, pengecualian pelaporan, dan matriks wewenang.
-- **Admin sistem (IT):** menunjuk pemilik proses dan pemilik master organisasi, serta mengimpor isi awal. Admin tidak mengubah isi alur atau struktur.
+- **Admin sistem (IT):** menunjuk pemilik proses dan pemilik master organisasi, mengimpor isi awal, dan mengelola integrasi. Pada fase awal admin boleh mengubah dan mengaktifkan semuanya sendiri; tindakan tanpa peninjau kedua ditandai di audit.
 
 ## Product Purpose
 
-Menggantikan approval lewat kertas, chat, dan email dengan alur yang terdefinisi, berversi, dan teraudit. Keberhasilan berarti permintaan selesai tepat tenggat, setiap keputusan bisa ditelusuri ke orang, waktu, dan versi alur, dan pemilik proses bisa mengubah aturan tanpa bantuan developer.
+Menyatukan logika approval yang sekarang tersebar di tiap sistem internal (aplikasi HR, ERP, aplikasi pengembangan produk, chat dan email) ke satu tempat, dengan alur yang terdefinisi, berversi, dan teraudit. Keberhasilan berarti permintaan selesai tepat tenggat, setiap keputusan bisa ditelusuri ke orang, waktu, dan versi alur, dan pemilik proses bisa mengubah aturan tanpa bantuan developer.
 
 ## Positioning
 
-Alur approval adalah definisi berversi yang dimiliki pemilik proses, dirujuk ke SOP sumber, divalidasi mesin (tidak ada jalur tanpa approval, pemisahan tugas), dan bisa disimulasikan sebelum diaktifkan. Draf bisa disusun dengan bantuan AI dari SOP, dengan kutipan sumber yang tampil per aturan. Aktivasi selalu butuh pemilik kedua (four-eyes).
+Alur approval adalah definisi berversi yang dimiliki pemilik proses, dirujuk ke SOP sumber, divalidasi mesin (tidak ada jalur tanpa approval, pemisahan tugas), dan bisa disimulasikan sebelum diaktifkan. Draf bisa disusun dengan bantuan AI dari SOP, dengan kutipan sumber yang tampil per aturan. Aktivasi selalu butuh pemilik kedua (four-eyes). Setiap permintaan baru mendapat ringkasan AI untuk approver, dan tanda anomali (pembelian dipecah, nominal tak wajar, pengajuan ganda) yang dijelaskan AI dan hanya terlihat oleh approver.
 
 ## Operating Context
 
 - Antrean kotak masuk berisi tenggat SLA. Ada pengingat dan eskalasi otomatis ke atasan lewat cron.
 - Detail permintaan memuat isian dinamis per alur, lampiran (R2), langkah approval, dan riwayat audit append-only.
 - Delegasi berjangka waktu, dibuat sendiri atau oleh atasan atas nama bawahan.
-- Hasil approval pembelian disinkronkan ke ERP. Notifikasi dikirim di dalam aplikasi dan lewat email.
+- Notifikasi dikirim di dalam aplikasi; pengiriman email dan sinkronisasi ERP masih berupa adaptor tiruan di lingkungan test.
 - Integrasi dua arah: sistem lain mengajukan permintaan lewat API dengan kunci per sistem (permintaan itu mengikuti alur yang sama), dan diberi tahu hasil akhirnya lewat webhook bertanda tangan. Logika approval hanya ada di Sentinel.
 - Editor alur terdiri dari diagram visual, panel langkah, tabel aturan, simulasi, pemeriksaan validasi, tautan SOP wajib, dan chat AI penyusun draf.
 
@@ -45,18 +45,18 @@ Alur approval adalah definisi berversi yang dimiliki pemilik proses, dirujuk ke 
 - Semua fitur juga tersedia lewat server MCP di `/mcp` dengan login OAuth; tiap tool berjalan dengan hak akses pengguna yang sama.
 - Fase awal dipakai tim IT: admin sistem boleh mengubah dan mengaktifkan semuanya sendiri, dan tindakan tanpa peninjau kedua ditandai di audit.
 - Status inti: draf, terbuka/berjalan, disetujui, ditolak, diminta revisi, aktif (versi alur).
-- Skala 100–500 karyawan berarti daftar bisa panjang. Filter, pencarian, dan aksi massal belum ada dan belum diputuskan.
-- Masih PoC. Akun contoh ada di data seed (`apps/api/scripts/seed.ts`).
+- Skala 100–500 karyawan berarti daftar bisa panjang. Kotak masuk punya pencarian, filter, urutan tenggat, dan setujui massal.
+- Tahap MVP di lingkungan test. Akun contoh ada di data seed (`apps/api/scripts/seed.ts`); organisasi demo 25 orang di `apps/api/scripts/demo/`.
 
 ## Brand Commitments
 
-UI wajib membawa identitas Mitra Prodin (logo dan warna perusahaan). Aset resmi belum ada di repositori dan harus diberikan pengguna. Jangan menebak atau menggambar ulang logo. "Sentinel" adalah nama aplikasi di dalam identitas Mitra Prodin.
+UI wajib membawa identitas Mitra Prodin (logo dan warna perusahaan). Aset resmi diambil dari situs perusahaan dan ada di `apps/web/public/brand/`. Jangan menggambar ulang logo. "Sentinel" adalah nama aplikasi di dalam identitas Mitra Prodin.
 
 ## Evidence on Hand
 
 - Contoh definisi alur: `packages/engine/examples/` (cuti, akses IT, pembelian, direktori).
 - Data seed akun dan peran: `apps/api/scripts/seed.ts`.
-- Belum ada aset brand, data pemakaian nyata, atau testimoni. Jangan mengarang.
+- Validasi dengan data terukur lintas sistem dan wawancara pemilik proyek: `docs/validation.md`. Masukan pengguna nyata baru dari tim IT. Jangan mengarang testimoni.
 
 ## Product Principles
 

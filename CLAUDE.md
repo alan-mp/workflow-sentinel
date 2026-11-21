@@ -1,8 +1,10 @@
 # Sentinel
 
-Approval-workflow app: versioned flows owned by process owners, an AI drafter that cites the SOP, and approvers
-computed from an organization tree. Product context is in `apps/web/PRODUCT.md`, requirements in `docs/PRD.md`,
-design in `docs/spec.md` and `docs/architecture.md`, visual system in `apps/web/DESIGN.md`.
+Approval-workflow app: one place for approval rules across internal systems. Versioned flows owned by process owners,
+approvers computed from an organization tree, an inbound API and signed webhooks for other systems, and three AI
+features: a flow drafter that cites the SOP, a briefing for approvers, and anomaly flags explained by AI.
+Product context is in `apps/web/PRODUCT.md`, requirements in `docs/PRD.md`, design in `docs/spec.md` and
+`docs/architecture.md`, visual system in `apps/web/DESIGN.md`.
 
 ## Commands
 - `npm install` then `npm run db:setup` (local D1 with demo data) and `npm run dev` (http://localhost:8787)
@@ -20,7 +22,8 @@ design in `docs/spec.md` and `docs/architecture.md`, visual system in `apps/web/
 ## Rules that must not be broken
 - A requester never decides their own request. This is enforced in the engine (`act`), not only in the UI
 - No flow path may finish without a human approval; `validateDefinition` rejects such definitions
-- The AI only edits drafts. Nothing reachable by the model may activate a flow or decide a task
+- The AI only edits drafts and writes text. Nothing reachable by the model may activate a flow, decide a task, or change routing
+- Anomaly flags are computed by deterministic rules in the engine, never by the model, and are never shown to the requester
 - `audit_events` is append-only and active flow versions are immutable; never add code that updates or deletes them
 - Approvers are computed from the organization tree and the authority matrix. Do not store a superior per person
 - Rule evaluation errors stop routing (fail closed). Do not catch them to fall through to another rule row
