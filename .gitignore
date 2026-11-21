@@ -4,3 +4,9 @@ dist
 .dev.vars
 *.log
 .seed.sql
+.dev.vars.*
+.env
+.env.*
+coverage
+*.tsbuildinfo
+.DS_Store
