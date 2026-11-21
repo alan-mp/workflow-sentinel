@@ -32,6 +32,8 @@ The demo runs on sample data. Demo flow and step names are in Indonesian because
   reporting exceptions, and a separate authority matrix. A coverage test finds people whose approval path would dead-end.
 - **Controls.** A requester can never approve their own request; flow and organization changes need a second person;
   the audit trail is append-only; active flow versions are immutable.
+- **Integrations.** Other systems file requests through an API with a per-system key and are told the outcome by
+  signed webhooks, so approval rules live in one place instead of in every application.
 - **MCP server.** Every feature is also available to AI assistants at `/mcp` through OAuth, with exactly the
   signed-in user's permissions.
 
@@ -70,7 +72,7 @@ npm run dev          # http://localhost:8787
 
 ```bash
 npm run typecheck    # TypeScript, all packages
-npm test             # 98 unit and API tests
+npm test             # 102 unit and API tests
 npm run build        # production build of the web app
 ```
 
@@ -105,6 +107,22 @@ Worker stores no provider key and no gateway token.
 
 To use your own Anthropic key instead, leave `AI_GATEWAY_ID` empty, set `AI_GATEWAY_URL`, and store
 `ANTHROPIC_API_KEY` with `wrangler secret put`.
+
+### Integrations
+An administrator creates an API client under **Integrations** and gets a key once. Another system then files a
+request for an employee:
+
+```bash
+curl -X POST https://<host>/api/integrations/requests \
+  -H "Authorization: Bearer sk_sentinel_..." -H "Content-Type: application/json" \
+  -d '{"flowKey":"purchase","requesterEmail":"budi@contoh.test","externalRef":"PR-1042",
+       "data":{"amount":1000000,"category":"atk","description":"Printer paper"},
+       "callbackUrl":"https://erp.example.com/hooks/approval"}'
+```
+
+When the request is approved, rejected, or cancelled, Sentinel POSTs the outcome to the callback URL and to every
+registered webhook, signed with `X-Sentinel-Signature`. The payload and the signature check are described in
+[docs/spec.md](docs/spec.md).
 
 ### MCP
 Connect an MCP client to `https://<host>/mcp`. From Claude Code:

@@ -6,7 +6,7 @@ Browser (React SPA)          MCP client (Claude, etc.)
         ▼                                ▼
 ┌───────────────────────── Cloudflare Worker ─────────────────────────┐
 │ worker.ts   OAuth provider ── /authorize consent page (authorize.ts) │
-│             └─ mcp.ts: 35 tools, each calls the API in-process       │
+│             └─ mcp.ts: 42 tools, each calls the API in-process       │
 │ index.ts    Hono API: auth, requests, admin (flows), org             │
 │ ai.ts       AI drafter ── AI binding ── AI Gateway ── Claude         │
 │ cron        every 15 min: apply due org changes, SLA reminders       │
@@ -39,4 +39,6 @@ Browser (React SPA)          MCP client (Claude, etc.)
 - The OAuth consent page always asks for an explicit decision, uses a CSRF token, and sets a restrictive Content Security Policy.
 - A request is visible only to its requester, its approvers, and their active delegates.
 - The AI drafter receives the SOP, the draft, and authority names, and never employee data.
+- Other systems authenticate with a per-system API key that is shown once and stored only as a SHA-256 hash. A key lets a system file requests and read the ones it filed, nothing else.
+- Webhook targets must be https, a request's callback URL must be on its client's allowed host list, redirects are not followed, and every delivery is signed with HMAC-SHA256.
 - No secret is committed, and none is stored in GitHub: deploys are manual and the application reaches AI through a binding.

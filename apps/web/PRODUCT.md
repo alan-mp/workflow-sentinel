@@ -31,6 +31,7 @@ Alur approval adalah definisi berversi yang dimiliki pemilik proses, dirujuk ke 
 - Detail permintaan memuat isian dinamis per alur, lampiran (R2), langkah approval, dan riwayat audit append-only.
 - Delegasi berjangka waktu, dibuat sendiri atau oleh atasan atas nama bawahan.
 - Hasil approval pembelian disinkronkan ke ERP. Notifikasi dikirim di dalam aplikasi dan lewat email.
+- Integrasi dua arah: sistem lain mengajukan permintaan lewat API dengan kunci per sistem (permintaan itu mengikuti alur yang sama), dan diberi tahu hasil akhirnya lewat webhook bertanda tangan. Logika approval hanya ada di Sentinel.
 - Editor alur terdiri dari diagram visual, panel langkah, tabel aturan, simulasi, pemeriksaan validasi, tautan SOP wajib, dan chat AI penyusun draf.
 
 ## Capabilities and Constraints

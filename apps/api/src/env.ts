@@ -32,6 +32,8 @@ export interface Deps {
   email: EmailNotifier;
   /** Diisi di test; di produksi dibuat dari Env (Claude lewat AI Gateway). */
   drafter?: AiDrafter;
+  /** Outbound HTTP for webhooks; replaced in tests. */
+  http?: typeof fetch;
 }
 
 export type AppEnv = { Bindings: Env; Variables: { user: SessionUser } };

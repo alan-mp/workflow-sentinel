@@ -38,6 +38,7 @@ in [validation.md](validation.md).
 | F8 | SLA reminders and escalation | A task past its due date sends one reminder; past twice its SLA it adds the approver's superior, never the requester. |
 | F9 | Audit trail | Audit rows cannot be updated or deleted (enforced by database triggers). An active flow version cannot be changed or deleted. |
 | F10 | MCP server | An MCP client that completes OAuth can call every feature as the signed-in user; a call the user is not allowed to make returns the same 403 as the web app. |
+| F11 | Integration with other systems | A system holding a valid API key can file a request for an employee, and that request follows the flow in effect exactly like one filed in the app. Filing the same external reference twice creates one request. When a request is approved, rejected, or cancelled, every registered webhook and the request's callback URL receive a signed message; a failed delivery is retried and visible to administrators. A revoked key is rejected with HTTP 401. |
 
 ## 5. Out of scope (v1)
 Payments or disbursement, payroll and leave-balance calculation, document e-signature, single sign-on, native mobile apps,

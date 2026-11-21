@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AiDrafter, DraftTurnInput } from '../src/ai';
+import { deliverDue, sign } from '../src/integrations';
 import { runSla } from '../src/requests';
 import { ConflictError, commit, loadRequest } from '../src/store';
 import { setup } from './setup';
@@ -458,5 +459,101 @@ describe('master organisasi', () => {
     expect(leave.gaps.map((g: any) => g.userId)).toContain('u_dewi');
     expect(leave.gaps.map((g: any) => g.userId)).not.toContain('u_budi');
     expect(leave.blocked).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('integrasi: API masuk dan webhook keluar', () => {
+  const sent: { url: string; headers: Record<string, string>; body: string }[] = [];
+  let failing = false;
+  let apiKey: string;
+  let signingSecret: string;
+  let hookSecret: string;
+  /** Panggilan dari sistem lain: kunci API di header, tanpa sesi pengguna. */
+  const api = async (key: string | null, method: string, url: string, body?: unknown) => {
+    const res = await t.app.request(`/api/integrations${url}`, { method, headers: key ? { authorization: `Bearer ${key}` } : {}, body: body ? JSON.stringify(body) : undefined }, t.env);
+    return { status: res.status, body: (await res.json()) as any };
+  };
+
+  beforeAll(() => {
+    t.deps.http = (async (url: any, init: any) => {
+      if (failing) return new Response('down', { status: 503 });
+      sent.push({ url: String(url), headers: init.headers, body: init.body });
+      return new Response('ok');
+    }) as typeof fetch;
+  });
+
+  it('hanya admin sistem yang mengelola integrasi; kunci tampil sekali dan hanya hash yang disimpan', async () => {
+    expect((await t.call('budi', 'GET', '/admin/integrations')).status).toBe(403);
+    expect((await t.call('hadi', 'POST', '/admin/integrations/webhooks', { url: 'http://tidak-aman.test/x' })).status).toBe(400);
+    const client = await t.call('hadi', 'POST', '/admin/integrations/clients', { name: 'Aplikasi HR', callbackHosts: ['hr.contoh.test'] });
+    expect(client.status).toBe(201);
+    ({ apiKey, signingSecret } = client.body);
+    const hook = await t.call('hadi', 'POST', '/admin/integrations/webhooks', { url: 'https://erp.contoh.test/hook', flowKey: 'purchase' });
+    hookSecret = hook.body.secret;
+    const list = (await t.call('hadi', 'GET', '/admin/integrations')).body;
+    expect(JSON.stringify(list)).not.toContain(apiKey);
+    expect(JSON.stringify(list)).not.toContain(hookSecret);
+    const stored = await t.env.DB.prepare('SELECT key_hash FROM api_clients').first<any>();
+    expect(stored.key_hash).not.toContain(apiKey.slice(-20));
+  });
+
+  it('menolak tanpa kunci, callback di luar daftar, dan email yang tidak dikenal', async () => {
+    const body = { flowKey: 'purchase', requesterEmail: 'budi@contoh.test', data: { amount: 1_000_000, category: 'atk', description: 'Dari HR' } };
+    expect((await api(null, 'POST', '/requests', body)).status).toBe(401);
+    expect((await api('sk_sentinel_salah', 'POST', '/requests', body)).status).toBe(401);
+    expect((await api(apiKey, 'POST', '/requests', { ...body, callbackUrl: 'https://jahat.test/x' })).status).toBe(400);
+    expect((await api(apiKey, 'POST', '/requests', { ...body, requesterEmail: 'tidak.ada@contoh.test' })).status).toBe(422);
+    expect((await api(apiKey, 'POST', '/requests', { ...body, data: {} })).status).toBe(400);
+  });
+
+  it('pengajuan lewat API mengikuti alur yang sama, idempoten, dan hasil akhirnya dikirim bertanda tangan', async () => {
+    const body = {
+      flowKey: 'purchase',
+      requesterEmail: 'budi@contoh.test',
+      data: { amount: 1_000_000, category: 'atk', description: 'Dari HR' },
+      externalRef: 'HR-001',
+      callbackUrl: 'https://hr.contoh.test/approval-done',
+    };
+    const created = await api(apiKey, 'POST', '/requests', body);
+    expect(created.status).toBe(201);
+    const id = created.body.id;
+    expect((await api(apiKey, 'POST', '/requests', body)).body).toMatchObject({ id, duplicate: true });
+    // Approver yang sama dengan pengajuan lewat aplikasi: atasan langsung pemohon.
+    expect(await openTask('maya', id)).toMatchObject({ stepName: 'Atasan langsung' });
+    expect((await api(apiKey, 'GET', `/requests/${id}`)).body).toMatchObject({ status: 'in_progress', externalRef: 'HR-001' });
+    expect(sent).toHaveLength(0);
+
+    expect((await decide('maya', id, 'reject', { comment: 'Anggaran habis' })).status).toBe(200);
+    expect((await api(apiKey, 'GET', `/requests/${id}`)).body.status).toBe('rejected');
+    expect(sent.map((s) => s.url).sort()).toEqual(['https://erp.contoh.test/hook', 'https://hr.contoh.test/approval-done']);
+    for (const s of sent) {
+      const payload = JSON.parse(s.body);
+      expect(payload).toMatchObject({ event: 'request.rejected', request: { id, status: 'rejected', externalRef: 'HR-001', requesterEmail: 'budi@contoh.test' } });
+      const [, ts, mac] = /^t=(\d+),v1=([0-9a-f]+)$/.exec(s.headers['x-sentinel-signature']!)!;
+      const secret = s.url.includes('hr.contoh') ? signingSecret : hookSecret;
+      expect(mac).toBe(await sign(secret, Number(ts), s.body));
+    }
+    const actions = (await t.env.DB.prepare('SELECT action FROM audit_events WHERE request_id = ?').bind(id).all<any>()).results.map((r) => r.action);
+    expect(actions).toEqual(expect.arrayContaining(['request_submitted_via_api', 'webhook_delivered']));
+  });
+
+  it('webhook yang gagal dicoba ulang oleh cron, dan kunci yang dicabut berhenti bekerja', async () => {
+    sent.length = 0;
+    failing = true;
+    const id = (await t.call('budi', 'POST', '/requests', purchase(2_000_000))).body.id;
+    expect((await decide('maya', id, 'reject', { comment: 'Tidak perlu' })).status).toBe(200);
+    const pending = (await t.call('hadi', 'GET', '/admin/integrations/deliveries?status=pending')).body;
+    expect(pending).toHaveLength(1);
+    expect(pending[0]).toMatchObject({ requestId: id, attempts: 1, lastError: 'HTTP 503' });
+
+    failing = false;
+    expect(await deliverDue(t.env.DB, t.deps, new Date())).toBe(0); // belum waktunya
+    expect(await deliverDue(t.env.DB, t.deps, new Date(Date.now() + 2 * 60_000))).toBe(1);
+    expect(sent).toHaveLength(1);
+    expect((await t.call('hadi', 'GET', '/admin/integrations/deliveries?status=pending')).body).toHaveLength(0);
+
+    const clientId = (await t.call('hadi', 'GET', '/admin/integrations')).body.clients[0].id;
+    expect((await t.call('hadi', 'DELETE', `/admin/integrations/clients/${clientId}`)).status).toBe(200);
+    expect((await api(apiKey, 'GET', '/flows')).status).toBe(401);
   });
 });

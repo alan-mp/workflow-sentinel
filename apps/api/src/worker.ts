@@ -2,6 +2,7 @@ import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handleAuthorize } from './authorize';
 import type { Env } from './env';
 import { createApp } from './index';
+import { deliverDue } from './integrations';
 import { mcpFetch } from './mcp';
 import { applyDueChanges } from './org';
 import { runSla } from './requests';
@@ -56,5 +57,6 @@ export default {
     // Perubahan struktur yang jatuh tempo diterapkan dulu, supaya eskalasi SLA memakai struktur terbaru.
     await applyDueChanges(env.DB, deps, now);
     await runSla(env.DB, deps, now);
+    await deliverDue(env.DB, deps, now);
   },
 } satisfies ExportedHandler<Env>;

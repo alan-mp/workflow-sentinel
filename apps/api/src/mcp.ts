@@ -148,6 +148,26 @@ export const TOOLS = [
   tool({ name: 'set_org_owners', title: 'Set organization owners', description: 'Administrators only. Set the owners of the organization master (at least two).', input: z.object({ userIds: z.array(z.string()).min(2) }), call: (a) => ({ method: 'PUT', path: '/org/owners', body: a }) }),
   tool({ name: 'import_units', title: 'Import units', description: 'Administrators only. Create or update organization units from CSV text with the header id,name,level,parent_id. Unit heads are not imported.', input: z.object({ csv: z.string() }), call: (a) => ({ method: 'POST', path: '/org/import/units', body: a.csv }) }),
   tool({ name: 'import_people', title: 'Import people', description: 'Administrators only. Create or update people from CSV text with the header id,email,name,unit_id,title,is_admin. New people get a temporary password, returned once.', input: z.object({ csv: z.string() }), call: (a) => ({ method: 'POST', path: '/admin/directory', body: a.csv }) }),
+  // ----- Integrations -----
+  tool({ name: 'list_integrations', title: 'Integrations', description: 'Administrators only. List API clients (other systems allowed to file requests) and registered webhooks. Keys and secrets are never returned here.', input: none, readOnly: true, call: () => ({ method: 'GET', path: '/admin/integrations' }) }),
+  tool({
+    name: 'create_api_client',
+    title: 'Create an API client',
+    description: 'Administrators only. Register another system that may file approval requests through POST /api/integrations/requests. Returns the API key and the webhook signing secret once; they cannot be read again, so hand them to the user immediately.',
+    input: z.object({ name: z.string().min(1).describe('Name of the system, for example "HR application"'), callbackHosts: z.array(z.string()).optional().describe('Host names this system may use as callbackUrl, for example ["hr.example.com"]') }),
+    call: (a) => ({ method: 'POST', path: '/admin/integrations/clients', body: a }),
+  }),
+  tool({ name: 'revoke_api_client', title: 'Revoke an API client', description: 'Administrators only. Revoke an API client so its key stops working. Requests it already filed continue through their flow. Confirm with the user before calling.', input: z.object({ clientId: id('API client ID from list_integrations') }), call: (a) => ({ method: 'DELETE', path: `/admin/integrations/clients/${encodeURIComponent(a.clientId)}` }) }),
+  tool({
+    name: 'create_webhook',
+    title: 'Register a webhook',
+    description: 'Administrators only. Register an https URL that is told when a request finishes (approved, rejected, or cancelled), for one flow or for all flows. Returns the signing secret once.',
+    input: z.object({ url: z.string().describe('https URL that receives the POST'), flowKey: z.string().nullable().optional().describe('Flow key, or omit for all flows') }),
+    call: (a) => ({ method: 'POST', path: '/admin/integrations/webhooks', body: a }),
+  }),
+  tool({ name: 'delete_webhook', title: 'Delete a webhook', description: 'Administrators only. Stop sending events to a registered webhook. Confirm with the user before calling.', input: z.object({ webhookId: id('Webhook ID from list_integrations') }), call: (a) => ({ method: 'DELETE', path: `/admin/integrations/webhooks/${encodeURIComponent(a.webhookId)}` }) }),
+  tool({ name: 'list_webhook_deliveries', title: 'Webhook deliveries', description: 'Administrators only. List the latest webhook deliveries with status (pending, delivered, failed), attempts, and the last error.', input: z.object({ status: z.enum(['pending', 'delivered', 'failed']).optional() }), readOnly: true, call: (a) => ({ method: 'GET', path: `/admin/integrations/deliveries${a.status ? `?status=${a.status}` : ''}` }) }),
+  tool({ name: 'retry_webhook_delivery', title: 'Retry a webhook delivery', description: 'Administrators only. Send a pending or failed webhook delivery again now.', input: z.object({ deliveryId: id('Delivery ID from list_webhook_deliveries') }), call: (a) => ({ method: 'POST', path: `/admin/integrations/deliveries/${encodeURIComponent(a.deliveryId)}/retry` }) }),
 ] as const;
 
 type App = Hono<AppEnv>;

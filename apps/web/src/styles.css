@@ -613,3 +613,14 @@ legend input { font-weight: 650; }
   .tree-row.person-row { grid-template-columns: minmax(0, 1fr); }
   .tree-row.person-row .tree-tags { display: none; }
 }
+
+/* ---------- Integrations ---------- */
+.stack { display: grid; gap: 1.5rem; align-content: start; min-width: 0; }
+.stack > * { min-width: 0; }
+.wrap-anywhere { overflow-wrap: anywhere; }
+.secret-box { border: 1px solid var(--amber-bar); background: var(--amber-wash); border-radius: var(--r); padding: 1rem 1.1rem; margin-bottom: 1.25rem; display: grid; gap: 0.5rem; justify-items: start; }
+.secret-title { margin: 0; font-weight: 650; color: var(--ink-strong); }
+.secret-box dl { margin: 0; display: grid; gap: 0.5rem; width: 100%; }
+.secret-box dt { font-size: 0.8rem; color: var(--muted); }
+.secret-box dd { margin: 0; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.secret-box code { font-family: var(--mono); font-size: 0.86rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 0.3rem 0.5rem; overflow-wrap: anywhere; min-width: 0; }

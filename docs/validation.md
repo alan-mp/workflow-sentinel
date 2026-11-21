@@ -71,13 +71,14 @@ were added, and all seven steps were judged again.
 | Requester never approves own request | Leaks in a few cases | Per module | No control | Present in one tool read | Enforced in the engine |
 | Versioned flows, simulation, second-person activation | No | Would need building | Not applicable | Versioning yes; simulation and second-person activation not found | Built |
 | Rules owned by non-developers | No | No | No written rules | Yes in no-code tools | Claimed, not yet tested with real process owners |
-| Inbound API for other systems to file a request | No (assumed) | Would need building | No | Yes | **Planned, not built** |
-| Outbound webhook when an approval finishes | No (assumed) | Would need building | No | Not verified | **Planned, not built** |
+| Inbound API for other systems to file a request | No (assumed) | Would need building | No | Yes | Built after this validation |
+| Outbound webhook when an approval finishes | No (assumed) | Would need building | No | Not verified | Built after this validation |
 | Cost for about 250 users | None new | Developer time per module | None | USD 15 per user per month at one list price; others by quote only | One in-house developer to maintain it |
 
 "Not found" means not on the documentation pages that were opened, not proven absent. User review sites could not
 be opened. The Sentinel column describes the application in this repository; the research had no outside evidence
-for it.
+for it. The validation run recorded the inbound API and webhooks as planned; they were built in response to it and
+are specified in [spec.md](spec.md).
 
 ## Key sources
 | Step | Evidence | Source |
@@ -127,7 +128,7 @@ Pass marks were fixed before running any test. They are design choices, not figu
 | Low adoption; people keep using chat and email | High | Pilot with one process and fixed adoption thresholds; phone-first approval; test 3 above | Usage data from the pilot |
 | The AI drafts a wrong rule and the reviewer accepts it | Medium | Machine-checked citations, validation, simulation, and activation as a separate human step | Error rate of AI drafts measured in test 1 |
 | A ready-made tool, or extending the current HR application, would cover the need at lower cost | Medium | Side-by-side trial of one ready-made tool on the company's real cases (vacant head, acting head, requester in own chain) and a quote for about 250 users | The trial result and the quote |
-| Other systems cannot hand requests to Sentinel or learn the outcome, so approval logic stays scattered | Medium | Build the inbound API and outbound webhooks (planned) | One internal system integrated end to end |
+| Other systems cannot hand requests to Sentinel or learn the outcome, so approval logic stays scattered | Medium | Inbound API and signed outbound webhooks (built) | One internal system integrated end to end |
 
 The stress test found no condition that makes the idea unworkable. It did name one conditional risk: if nobody in HR
 or management decides which organization structure is correct and maintains it, computing approvers from it cannot

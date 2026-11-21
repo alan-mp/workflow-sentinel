@@ -5,6 +5,7 @@ import { LogEmailNotifier, MockErpAdapter } from './adapters';
 import { adminRoutes, ownedFlows } from './admin';
 import { ChangeError, orgRoutes, ownsOrg } from './org';
 import type { AppEnv, Deps, SessionUser } from './env';
+import { integrationAdminRoutes, integrationApiRoutes } from './integrations';
 import { requestRoutes } from './requests';
 import { randomToken, verifyPassword } from './security';
 import { ConflictError } from './store';
@@ -97,6 +98,9 @@ export function createApp(overrides: Partial<Deps> = {}) {
     return c.json({ ok: true });
   });
 
+  // Other systems authenticate with an API key, so these routes sit before the session check.
+  app.route('/integrations', integrationApiRoutes(deps));
+
   app.use('*', async (c, next) => {
     // Panggilan dari server MCP membawa identitas pengguna lewat objek Request itu sendiri, bukan header.
     const internalId = internalUsers.get(c.req.raw);
@@ -110,6 +114,7 @@ export function createApp(overrides: Partial<Deps> = {}) {
     c.json({ ...c.var.user, ownedFlows: await ownedFlows(c.env.DB, c.var.user), ownsOrg: await ownsOrg(c.env.DB, c.var.user) }),
   );
   app.route('/', requestRoutes(deps));
+  app.route('/admin/integrations', integrationAdminRoutes(deps));
   app.route('/admin', adminRoutes(deps));
   app.route('/org', orgRoutes(deps));
   return { app, deps };

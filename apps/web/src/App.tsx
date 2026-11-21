@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bell, FilePlus2, FileText, Inbox as InboxIcon, LogOut, Network, Search, Users, Workflow } from 'lucide-react';
+import { Bell, FilePlus2, FileText, Inbox as InboxIcon, LogOut, Network, Plug, Search, Users, Workflow } from 'lucide-react';
 import { api } from './api';
 import { Editor } from './admin/Editor';
 import { Flows } from './admin/Flows';
+import { Integrations } from './integrations';
 import { Organization } from './org';
 import { Delegations, Inbox, Login, MyRequests, NewRequest, Notifications, RequestPage } from './pages';
 import { Person } from './ui';
@@ -75,6 +76,7 @@ export function App() {
   const manage: NavItem[] = [
     ...(manages ? [{ key: 'admin', label: 'Approval flows', short: 'Flows', icon: <Workflow size={18} /> }] : []),
     ...(seesOrg ? [{ key: 'org', label: 'Organization', short: 'Organization', icon: <Network size={18} /> }] : []),
+    ...(me.isAdmin ? [{ key: 'integrations', label: 'Integrations', short: 'Integrations', icon: <Plug size={18} /> }] : []),
   ];
   const current = page === 'r' ? 'requests' : page;
 
@@ -87,6 +89,7 @@ export function App() {
   else if (page === 'delegations') body = <Delegations me={me} />;
   else if (page === 'notifications') body = <Notifications onRead={refreshCounts} />;
   else if (page === 'admin' && manages) body = <Flows me={me} />;
+  else if (page === 'integrations' && me.isAdmin) body = <Integrations />;
   else if (page === 'org' && seesOrg) body = <Organization tab={a} selected={b} />;
   else body = <Inbox selected={a} query={query} setQuery={setQuery} onChanged={refreshCounts} />;
 
@@ -139,7 +142,8 @@ export function App() {
       <main className="main">{body}</main>
       {editing ? null : (
         <nav className="tabbar" aria-label="Main navigation">
-          {[...work.filter((i) => i.key !== 'new'), ...manage].map((item) => (
+          {/* Integrations is set up at a desk; it stays out of the phone tab bar to keep the tabs readable. */}
+          {[...work.filter((i) => i.key !== 'new'), ...manage.filter((i) => i.key !== 'integrations')].map((item) => (
             <a key={item.key} href={`#/${item.key}`} className={current === item.key ? 'on' : ''} aria-current={current === item.key ? 'page' : undefined}>
               <span className="tab-icon">
                 {item.icon}

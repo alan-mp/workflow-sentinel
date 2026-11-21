@@ -13,6 +13,7 @@ import {
   type Result,
 } from '@sentinel/engine';
 import type { AppEnv, Deps, SessionUser } from './env';
+import { notifyFinal } from './integrations';
 import { randomToken, shortId } from './security';
 import {
   D1Directory,
@@ -58,6 +59,14 @@ export async function persist(
       if (pushed) await auditStatement(db, { ...base, action: 'erp_synced', detail: pushed }).run();
     } catch (e) {
       await auditStatement(db, { ...base, action: 'erp_sync_failed', detail: { error: String(e) } }).run();
+    }
+  }
+  // Tell other systems the outcome. A failure here never undoes the decision; it is retried by cron.
+  if (result.events.length > 0) {
+    try {
+      await notifyFinal(db, deps, result.state, now);
+    } catch (e) {
+      console.error('webhook queueing failed', e);
     }
   }
 }

@@ -47,5 +47,5 @@ export async function setup(drafter?: AiDrafter) {
     return { status: res.status, body: json };
   }
 
-  return { env, deps, call, dispose: () => proxy.dispose() };
+  return { env, deps, app, call, dispose: () => proxy.dispose() };
 }
