@@ -17,6 +17,8 @@
   // Penyimpanan OAuth untuk server MCP. Buat dengan: wrangler kv namespace create sentinel-oauth, lalu isi id.
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }],
   "triggers": { "crons": ["*/15 * * * *"] },
+  // Log dan jejak permintaan di dashboard Cloudflare (Workers > Observability).
+  "observability": { "enabled": true },
   // AI tanpa kunci: di lingkungan yang di-deploy, tambahkan "ai": { "binding": "AI" } dan isi AI_GATEWAY_ID
   // (lihat env.test). Binding itu tidak dipasang di sini karena butuh koneksi ke Cloudflare, sehingga
   // pengembangan dan tes lokal tetap berjalan offline.
@@ -28,10 +30,11 @@
   // Hanya untuk alternatif itu, secret (wrangler secret put): ANTHROPIC_API_KEY, opsional AI_GATEWAY_TOKEN
 
   "env": {
-    // Lingkungan test: Worker "workflow-sentinel-test" di akun Developer Mitra Prodin.
-    // Deploy: npm run deploy:test. Binding D1, R2, dan vars tidak diwarisi, jadi ditulis ulang di sini.
+    // Lingkungan test: Worker "workflow-sentinel-test". Akun Cloudflare diambil dari variabel lingkungan
+    // CLOUDFLARE_ACCOUNT_ID (secret di GitHub Actions, atau di shell saat deploy manual), tidak ditulis di sini.
+    // Deploy: npm run deploy:test. Binding D1, R2, KV, dan vars tidak diwarisi, jadi ditulis ulang di sini.
     "test": {
-      "account_id": "00000000000000000000000000000000",
+      "observability": { "enabled": true },
       "d1_databases": [
         { "binding": "DB", "database_name": "sentinel-test", "database_id": "0c2c3d5d-8254-4658-895d-3c34676d381b", "migrations_dir": "migrations" }
       ],

@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Karyawan internal Mitra Prodin, 100–500 orang saat dipakai penuh. Perangkatnya campuran: admin dan pemilik proses bekerja di desktop kantor, sementara atasan sering memberi approval dari HP.
+Karyawan kantor internal, ratusan orang saat dipakai penuh. Perangkatnya campuran: admin dan pemilik proses bekerja di desktop kantor, sementara atasan sering memberi approval dari HP.
 
 - **Pemohon:** mengajukan cuti/izin, akses IT, dan pembelian, lalu memantau statusnya sampai selesai atau diminta revisi.
 - **Approver (atasan, finance, peran lain):** memproses antrean kotak masuk dengan menyetujui, menolak, atau meminta revisi, sering di sela pekerjaan lain dan dari HP. Bisa punya belasan tugas terbuka sekaligus.
@@ -35,7 +35,7 @@ Alur approval adalah definisi berversi yang dimiliki pemilik proses, dirujuk ke 
 
 ## Capabilities and Constraints
 
-- Sentinel punya master organisasi sendiri. Approver tidak disalin dari sistem HR: atasan dihitung dari pohon unit (satu kepala per unit, Plt, naik kalau kosong), pengecualian pelaporan dicatat dengan alasan dan masa berlaku, dan wewenang ada di matriks terpisah. Data HR hanya menjadi draf isi awal.
+- Sentinel punya master organisasi sendiri dan tidak menyalin approver dari sistem HR: atasan dihitung dari pohon unit (satu kepala per unit, Plt, naik kalau kosong), pengecualian pelaporan dicatat dengan alasan dan masa berlaku, dan wewenang ada di matriks terpisah. Data HR hanya menjadi draf isi awal.
 - Dua jalur approval dibedakan eksplisit: sesuai struktur (atasan, kepala unit) dan sesuai wewenang. Setiap penunjukan approver menampilkan alasannya.
 
 - Stack: React 18 + Vite (`apps/web`), Cloudflare Worker + Hono + D1 + R2 (`apps/api`), mesin alur murni di `packages/engine`. Diagram memakai `@xyflow/react`.
