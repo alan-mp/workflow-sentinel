@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/alan-mp/workflow-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/alan-mp/workflow-sentinel/actions/workflows/ci.yml)
 
-Sentinel is an approval-workflow web application for leave, IT access, and purchase requests. The people who own an
-SOP turn it into a working, versioned approval flow with help from an AI drafter that cites the SOP for every rule.
-Approvers are computed from the organization structure, and every assignment and decision is recorded with its reason.
+Sentinel is an approval-workflow web application that puts a company's approval rules in one place instead of in
+every internal system. The people who own an SOP turn it into a working, versioned approval flow with help from an AI
+drafter that cites the SOP for every rule. Approvers are computed from the organization structure, and every assignment and decision is recorded with its reason.
 
 **Live demo:** https://workflow-sentinel-test.developer-24e.workers.dev
 
@@ -43,7 +43,7 @@ The demo runs on sample data. Demo flow and step names are in Indonesian because
 ## Documentation
 | Document | Contents |
 |---|---|
-| [docs/validation.md](docs/validation.md) | 7-step idea validation: verdict, measured evidence, owner interview, pilot design, risk register ([appendix: source research](docs/validation-report.html)) |
+| [docs/validation.md](docs/validation.md) | 7-step idea validation: verdict, measured evidence, owner interview, pilot design, risk register |
 | [docs/PRD.md](docs/PRD.md) | One-page product requirements with acceptance criteria |
 | [docs/spec.md](docs/spec.md) | Data model, interfaces, acceptance tests, deployment, revisions after review |
 | [docs/architecture.md](docs/architecture.md) | Architecture diagram and design decisions |

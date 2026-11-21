@@ -32,12 +32,12 @@ Three kinds of evidence, kept apart so that a reader can weigh each:
 2. **A structured interview with the project owner** (in-house IT, the person who receives the approval-related
    requests), held on 21 November 2026. These are statements, marked as such.
 3. **Published sources**, each re-opened and checked against its quote by a separate checker. They are listed under
-   Key sources and in full in [validation-report.html](validation-report.html).
+   Key sources.
 
 An earlier run scored this idea with a generic startup rubric and looked only at the HR application. That missed the
 point of the project, which is the spread of approval logic across systems, so the scope was widened to every system
-and the owner was interviewed. The earlier run's external research is kept as the appendix report; its statuses are
-superseded by this document.
+and the owner was interviewed. The published sources below come from that run's research;
+its scoring is superseded by this document.
 
 ## 1. Define the Problem
 *Testing: A real, specific pain point exists that people actively try to solve*
@@ -206,7 +206,7 @@ which structure is correct, no software can compute the right approver.
 | 7 | "Turnover technical debt" when the only developer leaves | [TechDebt 2026](https://conf.researchr.org/details/TechDebt-2026/TechDebt-2026-main/4/-That-Developer-Left-the-Project-An-Introduction-and-Case-Study-of-Turnover-Techni) |
 | 7 | AI-built internal tools are cheap to make but not cheap to own | [QA Wolf](https://www.qawolf.com/blog/the-graveyard-of-ai-built-internal-tools-keeps-growing) |
 
-The full list with titles, dates, quotes and checker notes is in [validation-report.html](validation-report.html).
+Each source was re-opened and its quote matched before it was listed.
 
 
 ## Limits of this validation
@@ -216,5 +216,5 @@ The full list with titles, dates, quotes and checker notes is in [validation-rep
   second-hand for what requesters and approvers experience.
 - Nothing has run through Sentinel in real use. Step 6 is a design.
 - Ready-made tools were assessed from documentation only.
-- The readings in the verdict table are the author's, made from the evidence shown here. The appendix report holds
-  an independent scoring of an earlier, narrower scope.
+- The readings in the verdict table are the author's, made from the evidence shown here, not an independent
+  scoring.
