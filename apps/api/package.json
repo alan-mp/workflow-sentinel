@@ -5,8 +5,12 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
+    "@cloudflare/workers-oauth-provider": "^1.2.4",
+    "@modelcontextprotocol/server": "^2.4.0",
     "@sentinel/engine": "*",
-    "hono": "^4.6.0"
+    "agents": "^0.34.0",
+    "hono": "^4.6.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250101.0",

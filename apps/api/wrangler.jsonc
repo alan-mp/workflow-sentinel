@@ -1,24 +1,31 @@
 {
   "name": "workflow-sentinel",
-  "main": "src/index.ts",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    // Selain API: endpoint MCP dan alur OAuth-nya ditangani Worker, bukan aset statis.
+    "run_worker_first": ["/api/*", "/mcp", "/mcp/*", "/authorize", "/oauth/*", "/.well-known/*"]
   },
   // Buat dengan: wrangler d1 create sentinel --location apac, lalu isi database_id.
   "d1_databases": [
     { "binding": "DB", "database_name": "sentinel", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "sentinel-files" }],
+  // Penyimpanan OAuth untuk server MCP. Buat dengan: wrangler kv namespace create sentinel-oauth, lalu isi id.
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }],
   "triggers": { "crons": ["*/15 * * * *"] },
+  // AI tanpa kunci: di lingkungan yang di-deploy, tambahkan "ai": { "binding": "AI" } dan isi AI_GATEWAY_ID
+  // (lihat env.test). Binding itu tidak dipasang di sini karena butuh koneksi ke Cloudflare, sehingga
+  // pengembangan dan tes lokal tetap berjalan offline.
   "vars": {
-    // https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic
+    "AI_GATEWAY_ID": "",
+    // Alternatif dengan kunci sendiri: https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic
     "AI_GATEWAY_URL": ""
   },
-  // Secret (wrangler secret put): ANTHROPIC_API_KEY, opsional AI_GATEWAY_TOKEN
+  // Hanya untuk alternatif itu, secret (wrangler secret put): ANTHROPIC_API_KEY, opsional AI_GATEWAY_TOKEN
 
   "env": {
     // Lingkungan test: Worker "workflow-sentinel-test" di akun Developer Mitra Prodin.
@@ -29,7 +36,11 @@
         { "binding": "DB", "database_name": "sentinel-test", "database_id": "0c2c3d5d-8254-4658-895d-3c34676d381b", "migrations_dir": "migrations" }
       ],
       "r2_buckets": [{ "binding": "FILES", "bucket_name": "sentinel-files-test" }],
+      "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "cbdaaac6556a46978045ae8c4b180576" }],
+      // AI lewat binding + AI Gateway (Unified Billing): tidak ada kunci atau token di Worker.
+      "ai": { "binding": "AI" },
       "vars": {
+        "AI_GATEWAY_ID": "internal-apps",
         "AI_GATEWAY_URL": ""
       }
     }

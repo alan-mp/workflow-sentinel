@@ -36,12 +36,27 @@ lalu berlaku pada tanggalnya; tugas yang masih terbuka dipindahkan mengikuti str
 temuan risiko, dan uji cakupan. Isi awal diimpor admin sistem: `POST /api/org/import/units` (CSV `id,name,level,parent_id`)
 lalu `POST /api/admin/directory` (CSV `id,email,name,unit_id,title,is_admin`).
 
-Chat AI butuh file `apps/api/.dev.vars`:
+Chat AI butuh `AI_GATEWAY_ID` (lihat bagian AI di bawah).
 
-```
-AI_GATEWAY_URL=https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic
-ANTHROPIC_API_KEY=...
-```
+## Server MCP
+
+Semua fitur Sentinel tersedia sebagai tool MCP di `https://<host>/mcp` (Streamable HTTP, tanpa state). Klien masuk lewat
+OAuth: pengguna login dan menyetujui akses di `/authorize`, lalu setiap tool berjalan sebagai pengguna itu dengan hak akses
+yang sama persis dengan di aplikasi web, dan tercatat di audit yang sama. Daftar tool ada di `apps/api/src/mcp.ts`.
+
+Menyambungkan dari Claude Code: `claude mcp add --transport http sentinel https://<host>/mcp`, lalu `/mcp` untuk login.
+Butuh KV namespace yang di-bind sebagai `OAUTH_KV`; tanpa itu endpoint MCP mati dan aplikasi tetap berjalan.
+
+## AI lewat Cloudflare AI Gateway
+
+Cara utama tidak memakai kunci apa pun. Worker memanggil Claude lewat binding `AI` ke sebuah AI Gateway, dan pemakaian
+ditagih ke kredit Cloudflare (Unified Billing):
+
+1. Di dashboard Cloudflare: AI > AI Gateway, buat gateway (atau pakai yang ada) dan isi kredit di "Credits Available".
+2. Isi nama gateway di `AI_GATEWAY_ID` pada `wrangler.jsonc`, lalu deploy.
+
+Alternatif dengan kunci Anthropic sendiri: kosongkan `AI_GATEWAY_ID`, isi `AI_GATEWAY_URL`, lalu simpan
+`ANTHROPIC_API_KEY` (dan `AI_GATEWAY_TOKEN` untuk gateway yang terautentikasi) dengan `wrangler secret put`.
 
 ## Deploy ke Cloudflare
 
