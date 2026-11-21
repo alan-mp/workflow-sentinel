@@ -1,0 +1,9 @@
+[
+  {"id": "direksi", "name": "Direksi", "level": "direksi", "headUserId": "u_dewi"},
+  {"id": "finance", "name": "Finance", "level": "departemen", "parentId": "direksi", "headUserId": "u_fajar"},
+  {"id": "purchasing", "name": "Purchasing", "level": "unit", "parentId": "finance", "headUserId": "u_pandu"},
+  {"id": "it", "name": "IT", "level": "departemen", "parentId": "direksi", "headUserId": "u_irfan"},
+  {"id": "hr", "name": "HR", "level": "departemen", "parentId": "direksi", "headUserId": "u_hana"},
+  {"id": "produksi", "name": "Produksi", "level": "departemen", "parentId": "direksi", "headUserId": "u_putra"},
+  {"id": "produksi_line", "name": "Produksi Line", "level": "seksi", "parentId": "produksi", "headUserId": "u_maya"}
+]

@@ -33,11 +33,25 @@ const ManagerApprover = z
 const RoleApprover = z.object({ kind: z.literal('role'), role: Id }).strict();
 const UserApprover = z.object({ kind: z.literal('user'), userId: z.string().min(1) }).strict();
 
+/** Tingkat unit organisasi, dari yang tertinggi. */
+export const UNIT_LEVELS = ['direksi', 'divisi', 'departemen', 'unit', 'seksi'] as const;
+export type UnitLevel = (typeof UNIT_LEVELS)[number];
+export const UNIT_LEVEL_LABEL: Record<UnitLevel, string> = {
+  direksi: 'Direksi',
+  divisi: 'Divisi',
+  departemen: 'Departemen',
+  unit: 'Unit',
+  seksi: 'Seksi',
+};
+/** Kepala unit pemohon pada tingkat tertentu (atau tingkat terdekat di atasnya). */
+const UnitHeadApprover = z.object({ kind: z.literal('unit_head'), level: z.enum(UNIT_LEVELS) }).strict();
+
 /** Approver yang ditunjuk langsung (bukan lewat tabel). */
 export const DirectApproverSchema = z.discriminatedUnion('kind', [
   ManagerApprover,
   RoleApprover,
   UserApprover,
+  UnitHeadApprover,
 ]);
 export type DirectApprover = z.infer<typeof DirectApproverSchema>;
 
@@ -45,6 +59,7 @@ export const ApproverSpecSchema = z.discriminatedUnion('kind', [
   ManagerApprover,
   RoleApprover,
   UserApprover,
+  UnitHeadApprover,
   z.object({ kind: z.literal('table'), tableId: Id }).strict(),
 ]);
 export type ApproverSpec = z.infer<typeof ApproverSpecSchema>;
@@ -59,6 +74,7 @@ export const RuleRowSchema = z
       ManagerApprover,
       RoleApprover,
       UserApprover,
+  UnitHeadApprover,
       z.object({ kind: z.literal('none') }).strict(),
     ]),
   })
@@ -141,6 +157,7 @@ export const StepSchema: z.ZodType<Step> = z.lazy(() =>
           ManagerApprover,
           RoleApprover,
           UserApprover,
+          UnitHeadApprover,
           z.object({ kind: z.literal('requester') }).strict(),
         ]),
         message: z.string().min(1),
@@ -170,3 +187,12 @@ export interface FlowDefinition {
 export const BUILTIN_FIELDS: Record<string, Field['type']> = {
   'requester.department': 'string',
 };
+
+/** Semua langkah, termasuk yang bersarang di cabang. */
+export function flattenSteps(steps: Step[]): Step[] {
+  return steps.flatMap((s) => {
+    if (s.type === 'condition') return [s, ...s.branches.flatMap((b) => flattenSteps(b.steps)), ...flattenSteps(s.otherwise)];
+    if (s.type === 'parallel') return [s, ...s.branches.flatMap(flattenSteps)];
+    return [s];
+  });
+}

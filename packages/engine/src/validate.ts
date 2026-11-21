@@ -66,6 +66,9 @@ export function validateDefinition(input: unknown): ValidationResult {
       if (values.some((v) => typeof v !== expected)) {
         err('BAD_VALUE', `${where}: nilai untuk ${c.field} harus bertipe ${type}`);
       }
+      if (type === 'date' && values.some((v) => typeof v === 'string' && Number.isNaN(Date.parse(v)))) {
+        err('BAD_VALUE', `${where}: nilai untuk ${c.field} harus tanggal yang valid (contoh 2026-12-31)`);
+      }
     }
   };
 

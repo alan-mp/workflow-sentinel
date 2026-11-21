@@ -3,6 +3,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { EngineError } from '@sentinel/engine';
 import { LogEmailNotifier, MockErpAdapter } from './adapters';
 import { adminRoutes, ownedFlows } from './admin';
+import { ChangeError, applyDueChanges, orgRoutes, ownsOrg } from './org';
 import type { AppEnv, Deps, Env } from './env';
 import { requestRoutes, runSla } from './requests';
 import { randomToken, verifyPassword } from './security';
@@ -26,6 +27,7 @@ export function createApp(overrides: Partial<Deps> = {}) {
   app.onError((e, c) => {
     if (e instanceof EngineError) return c.json({ error: e.message, code: e.code }, STATUS[e.code] ?? 400);
     if (e instanceof ConflictError) return c.json({ error: e.message }, 409);
+    if (e instanceof ChangeError) return c.json({ error: e.message }, 400);
     console.error(e);
     return c.json({ error: 'Terjadi kesalahan di server' }, 500);
   });
@@ -81,9 +83,12 @@ export function createApp(overrides: Partial<Deps> = {}) {
     await next();
   });
 
-  app.get('/me', async (c) => c.json({ ...c.var.user, ownedFlows: await ownedFlows(c.env.DB, c.var.user) }));
+  app.get('/me', async (c) =>
+    c.json({ ...c.var.user, ownedFlows: await ownedFlows(c.env.DB, c.var.user), ownsOrg: await ownsOrg(c.env.DB, c.var.user) }),
+  );
   app.route('/', requestRoutes(deps));
   app.route('/admin', adminRoutes(deps));
+  app.route('/org', orgRoutes(deps));
   return { app, deps };
 }
 
@@ -92,6 +97,9 @@ const { app, deps } = createApp();
 export default {
   fetch: app.fetch,
   async scheduled(_controller: ScheduledController, env: Env) {
-    await runSla(env.DB, deps, new Date());
+    const now = new Date();
+    // Perubahan struktur yang jatuh tempo diterapkan dulu, supaya eskalasi SLA memakai struktur terbaru.
+    await applyDueChanges(env.DB, deps, now);
+    await runSla(env.DB, deps, now);
   },
 } satisfies ExportedHandler<Env>;

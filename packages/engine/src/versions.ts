@@ -1,5 +1,6 @@
 import type { FlowDefinition } from './definition';
 import { EngineError, type Actor, type AuditEvent } from './types';
+import { assertCompilable } from './rules';
 import { validateDefinition } from './validate';
 
 export interface FlowVersion {
@@ -71,6 +72,7 @@ export function activateVersion(
     const first = result.issues.find((i) => i.level === 'error')!;
     throw new EngineError('INVALID_DEFINITION', first.message);
   }
+  assertCompilable(version.definition);
   const at = now.toISOString();
   return {
     version: { ...version, status: 'active', effectiveFrom, activatedBy: actor.id, activatedAt: at },

@@ -34,6 +34,8 @@ describe('SLA', () => {
     const { state } = await startRequest(v, { id: 'r1', requesterId: 'u_fajar', data }, ctx);
     state.tasks[0]!.assignees = ['u_pandu']; // atasan Pandu adalah Fajar, si pemohon
     const r = await checkSla(state, v, later(48));
-    expect(r.state.tasks[0]!.assignees).toEqual(['u_pandu']);
+    // Eskalasi melewati pemohon dan naik ke atasan berikutnya.
+    expect(r.state.tasks[0]!.assignees).toEqual(['u_pandu', 'u_dewi']);
+    expect(r.state.tasks[0]!.assignees).not.toContain('u_fajar');
   });
 });

@@ -5,6 +5,7 @@ import {
   createDraft,
   type FlowDefinition,
   type FlowVersion,
+  type OrgUnit,
   type User,
 } from '../src/index';
 
@@ -12,7 +13,8 @@ const read = (name: string) =>
   JSON.parse(readFileSync(new URL(`../examples/${name}.json`, import.meta.url), 'utf8'));
 
 export const users: User[] = read('directory');
-export const directory = new InMemoryDirectory(users);
+export const units: OrgUnit[] = read('org');
+export const directory = new InMemoryDirectory({ users, units });
 export const definition = (name: string): FlowDefinition => read(name);
 export const NOW = new Date('2026-12-01T02:00:00.000Z');
 export const ctx = { directory, now: NOW };

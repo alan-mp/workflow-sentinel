@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import {
   EngineError,
+  InMemoryDirectory,
   act,
   checkSla,
   flattenSteps,
   resubmit,
   startRequest,
+  superiorOf,
   type AuditEvent,
   type RequestState,
   type Result,
@@ -20,6 +22,7 @@ import {
   notificationStatement,
   currentVersions,
   getVersion,
+  loadOrg,
   loadRequest,
   noticesFor,
   type StoredVersion,
@@ -96,13 +99,42 @@ export function requestRoutes(deps: Deps) {
 
   app.get('/requests', async (c) => {
     const { results } = await c.env.DB.prepare(
-      `SELECT r.id, r.flow_key, r.status, r.created_at, r.updated_at, json_extract(v.definition, '$.name') AS flow_name
+      `SELECT r.id, r.flow_key, r.status, r.created_at, r.updated_at, json_extract(v.definition, '$.name') AS flow_name, v.definition,
+              (SELECT json_group_array(json_object('stepId', t.step_id, 'assignees', json(t.assignees), 'createdAt', t.created_at, 'dueAt', t.due_at))
+                 FROM tasks t WHERE t.request_id = r.id AND t.status = 'open') AS open_tasks
        FROM requests r JOIN flow_versions v ON v.id = r.flow_version_id
        WHERE r.requester_id = ? ORDER BY r.created_at DESC LIMIT 100`,
     )
       .bind(c.var.user.id)
-      .all();
-    return c.json(results);
+      .all<Row>();
+    const ids = new Set<string>();
+    const parsed = results.map((r) => {
+      const open: { stepId: string; assignees: string[]; createdAt: string; dueAt: string | null }[] = JSON.parse((r.open_tasks as string) ?? '[]');
+      open.forEach((t) => t.assignees.forEach((a) => ids.add(a)));
+      return { r, open };
+    });
+    const names = new Map<string, string>();
+    if (ids.size) {
+      const { results: users } = await c.env.DB.prepare(`SELECT id, name FROM users WHERE id IN (${[...ids].map(() => '?').join(',')})`)
+        .bind(...ids)
+        .all<Row>();
+      users.forEach((u) => names.set(u.id as string, u.name as string));
+    }
+    return c.json(
+      parsed.map(({ r, open }) => {
+        const steps = flattenSteps(JSON.parse(r.definition as string).steps);
+        const { definition: _definition, open_tasks: _open, ...rest } = r;
+        return {
+          ...rest,
+          waiting: open.map((t) => ({
+            stepName: steps.find((s) => s.id === t.stepId)?.name ?? t.stepId,
+            assignees: t.assignees.map((a) => names.get(a) ?? a),
+            createdAt: t.createdAt,
+            dueAt: t.dueAt,
+          })),
+        };
+      }),
+    );
   });
 
   app.get('/inbox', async (c) => {
@@ -280,8 +312,17 @@ export function requestRoutes(deps: Deps) {
   });
 
   app.get('/reports', async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT id, name FROM users WHERE manager_id = ? ORDER BY name').bind(c.var.user.id).all();
-    return c.json(results);
+    // Bawahan langsung dihitung dari struktur: siapa pun yang atasan langsungnya saya.
+    const org = await loadOrg(c.env.DB);
+    const directory = new InMemoryDirectory(org);
+    const now = new Date();
+    const reports = [];
+    for (const u of org.users) {
+      if (u.id === c.var.user.id) continue;
+      const superior = await superiorOf(u, { directory, now }).catch(() => undefined);
+      if (superior?.user.id === c.var.user.id) reports.push({ id: u.id, name: u.name });
+    }
+    return c.json(reports);
   });
 
   app.get('/delegations', async (c) => {
@@ -311,7 +352,8 @@ export function requestRoutes(deps: Deps) {
     const [from, to] = await Promise.all([directory.getUser(fromUserId), directory.getUser(body.toUserId)]);
     if (!from || !to) return c.json({ error: 'User tidak ditemukan' }, 400);
     // Atas nama orang lain hanya boleh oleh atasan langsungnya.
-    if (fromUserId !== me.id && from.managerId !== me.id) {
+    const superior = fromUserId === me.id ? undefined : await superiorOf(from, { directory, now: new Date() }).catch(() => undefined);
+    if (fromUserId !== me.id && superior?.user.id !== me.id) {
       return c.json({ error: 'Hanya atasan langsung yang boleh membuat delegasi atas nama orang lain' }, 403);
     }
     const id = randomToken(8);

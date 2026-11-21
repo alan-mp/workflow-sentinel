@@ -1,12 +1,12 @@
 [
-  { "id": "u_dewi", "name": "Dewi (Direktur)", "department": "direksi", "roles": ["director"] },
-  { "id": "u_fajar", "name": "Fajar (Finance Manager)", "department": "finance", "managerId": "u_dewi", "roles": ["finance_manager"] },
-  { "id": "u_irfan", "name": "Irfan (IT Manager)", "department": "it", "managerId": "u_dewi", "roles": ["it_manager", "erp_owner"] },
-  { "id": "u_sari", "name": "Sari (IT Security)", "department": "it", "managerId": "u_irfan", "roles": ["it_security"] },
-  { "id": "u_hadi", "name": "Hadi (IT Helpdesk)", "department": "it", "managerId": "u_irfan", "roles": ["it_helpdesk"] },
-  { "id": "u_hana", "name": "Hana (HR)", "department": "hr", "managerId": "u_dewi", "roles": ["hr"] },
-  { "id": "u_putra", "name": "Putra (Plant Manager)", "department": "produksi", "managerId": "u_dewi", "roles": ["plant_manager"] },
-  { "id": "u_maya", "name": "Maya (Supervisor Produksi)", "department": "produksi", "managerId": "u_putra", "roles": [] },
-  { "id": "u_budi", "name": "Budi (Operator Produksi)", "department": "produksi", "managerId": "u_maya", "roles": [] },
-  { "id": "u_pandu", "name": "Pandu (Purchasing)", "department": "purchasing", "managerId": "u_fajar", "roles": ["purchasing"] }
+  {"id": "u_dewi", "name": "Dewi (Direktur)", "department": "direksi", "roles": ["director"], "unitId": "direksi"},
+  {"id": "u_fajar", "name": "Fajar (Finance Manager)", "department": "finance", "roles": ["finance_manager"], "unitId": "finance"},
+  {"id": "u_irfan", "name": "Irfan (IT Manager)", "department": "it", "roles": ["it_manager", "erp_owner"], "unitId": "it"},
+  {"id": "u_sari", "name": "Sari (IT Security)", "department": "it", "roles": ["it_security"], "unitId": "it"},
+  {"id": "u_hadi", "name": "Hadi (IT Helpdesk)", "department": "it", "roles": ["it_helpdesk"], "unitId": "it"},
+  {"id": "u_hana", "name": "Hana (HR)", "department": "hr", "roles": ["hr"], "unitId": "hr"},
+  {"id": "u_putra", "name": "Putra (Plant Manager)", "department": "produksi", "roles": ["plant_manager"], "unitId": "produksi"},
+  {"id": "u_maya", "name": "Maya (Supervisor Produksi)", "department": "produksi", "roles": [], "unitId": "produksi_line"},
+  {"id": "u_budi", "name": "Budi (Operator Produksi)", "department": "produksi", "roles": [], "unitId": "produksi_line"},
+  {"id": "u_pandu", "name": "Pandu (Purchasing)", "department": "purchasing", "roles": ["purchasing"], "unitId": "purchasing"}
 ]

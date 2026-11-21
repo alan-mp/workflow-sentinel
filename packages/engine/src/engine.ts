@@ -1,4 +1,7 @@
-import { buildFacts, resolveApprovers, resolveDirect, validateData, walk } from './routing';
+import { flattenSteps } from './definition';
+import { superiorOf } from './org';
+import { resolveApprovers, resolveDirect, validateData, walk } from './routing';
+import { buildFacts } from './rules';
 import { EngineError, type AuditEvent, type Delegation, type Directory, type User } from './types';
 import type { FlowVersion } from './versions';
 
@@ -17,6 +20,8 @@ export interface Task {
   actedAt?: string;
   remindedAt?: string;
   escalatedAt?: string;
+  /** Kenapa approver ini yang ditunjuk; ditampilkan ke pemohon dan approver. */
+  basis?: string;
 }
 
 export interface RequestState {
@@ -59,13 +64,17 @@ function requireVersion(state: RequestState, version: FlowVersion) {
   }
 }
 
+/** Orang yang sudah menyetujui pada putaran ini. */
+const approvedBy = (state: RequestState): string[] =>
+  state.tasks.filter((t) => t.round === state.round && t.status === 'approved' && t.actedBy).map((t) => t.actedBy!);
+
 /** Membuka langkah berikutnya, atau menyelesaikan permintaan. Mengubah `state`. */
 async function advance(state: RequestState, version: FlowVersion, ctx: EngineContext): Promise<AuditEvent[]> {
   const events: AuditEvent[] = [];
   const at = ctx.now.toISOString();
   const base = { at, flowVersionId: version.id, requestId: state.id };
   const requester = await requireUser(ctx.directory, state.requesterId);
-  const facts = buildFacts(state.data, requester);
+  const facts = buildFacts(version.definition.fields, state.data, requester);
 
   const done = await walk(version.definition.steps, facts, {
     approval: async (step) => {
@@ -78,6 +87,8 @@ async function advance(state: RequestState, version: FlowVersion, ctx: EngineCon
         requester,
         facts,
         directory: ctx.directory,
+        now: ctx.now,
+        alreadyApproved: approvedBy(state),
       });
       if (r.skipped) {
         state.completedSteps[step.id] = 'skipped';
@@ -100,6 +111,7 @@ async function advance(state: RequestState, version: FlowVersion, ctx: EngineCon
         dueAt: step.slaHours
           ? new Date(ctx.now.getTime() + step.slaHours * 3_600_000).toISOString()
           : undefined,
+        basis: r.basis,
       };
       state.tasks.push(task);
       events.push({
@@ -114,6 +126,7 @@ async function advance(state: RequestState, version: FlowVersion, ctx: EngineCon
           tableRow: r.tableRow,
           requesterExcluded: r.requesterExcluded,
           reroutedToManager: r.reroutedToManager,
+          basis: r.basis,
         },
       });
       return false;
@@ -122,7 +135,7 @@ async function advance(state: RequestState, version: FlowVersion, ctx: EngineCon
       if (state.notifiedSteps.includes(step.id)) return;
       state.notifiedSteps.push(step.id);
       const recipients =
-        step.to.kind === 'requester' ? [requester.id] : await resolveDirect(step.to, requester, ctx.directory);
+        step.to.kind === 'requester' ? [requester.id] : await resolveDirect(step.to, requester, ctx.directory, { now: ctx.now, flowKey: state.flowKey });
       events.push({
         ...base,
         actor: { type: 'system' },
@@ -329,14 +342,67 @@ export async function checkSla(current: RequestState, version: FlowVersion, ctx:
       task.escalatedAt = at;
       const added: string[] = [];
       for (const id of [...task.assignees]) {
-        const managerId = (await ctx.directory.getUser(id))?.managerId;
-        if (managerId && managerId !== state.requesterId && !task.assignees.includes(managerId)) {
-          task.assignees.push(managerId);
-          added.push(managerId);
+        const assignee = await ctx.directory.getUser(id);
+        if (!assignee) continue;
+        // Atasan yang dipilih tidak boleh pemohon atau orang yang sudah menjadi approver tugas ini.
+        const superior = await superiorOf(assignee, { directory: ctx.directory, now: ctx.now, flowKey: state.flowKey }, [
+          state.requesterId,
+          ...task.assignees,
+        ]).catch(() => undefined);
+        if (superior) {
+          task.assignees.push(superior.user.id);
+          added.push(superior.user.id);
         }
       }
       events.push({ ...base, action: 'sla_escalated', detail: { added, assignees: task.assignees } });
     }
+  }
+  return { state, events };
+}
+
+/**
+ * Tugas mengikuti struktur, bukan orang: setelah struktur organisasi berubah,
+ * approver tugas yang masih terbuka dihitung ulang. Tugas yang approver-nya
+ * berubah dipindahkan dan dicatat; eskalasi SLA-nya diulang dari awal.
+ */
+export async function rerouteOpenTasks(current: RequestState, version: FlowVersion, ctx: EngineContext): Promise<Result> {
+  requireVersion(current, version);
+  const state = structuredClone(current);
+  const events: AuditEvent[] = [];
+  if (state.status !== 'in_progress') return { state, events };
+  const requester = await requireUser(ctx.directory, state.requesterId);
+  const facts = buildFacts(version.definition.fields, state.data, requester);
+  const steps = flattenSteps(version.definition.steps);
+  for (const task of state.tasks) {
+    if (task.status !== 'open' || task.round !== state.round) continue;
+    const step = steps.find((s) => s.id === task.stepId);
+    if (!step || step.type !== 'approval') continue;
+    const r = await resolveApprovers(step.approver, {
+      definition: version.definition,
+      requester,
+      facts,
+      directory: ctx.directory,
+      now: ctx.now,
+      alreadyApproved: approvedBy(state),
+    }).catch(() => undefined);
+    // Routing yang kini buntu atau dilewati tidak mengubah tugas; itu ditangani lewat temuan struktur.
+    if (!r || r.skipped) continue;
+    const same = r.assignees.length === task.assignees.length && r.assignees.every((id) => task.assignees.includes(id));
+    if (same || (task.escalatedAt && r.assignees.every((id) => task.assignees.includes(id)))) continue;
+    const previous = task.assignees;
+    task.assignees = r.assignees;
+    task.basis = r.basis;
+    task.escalatedAt = undefined;
+    events.push({
+      at: ctx.now.toISOString(),
+      actor: { type: 'system' },
+      action: 'task_reassigned',
+      flowVersionId: version.id,
+      requestId: state.id,
+      stepId: task.stepId,
+      taskId: task.id,
+      detail: { previous, assignees: r.assignees, basis: r.basis },
+    });
   }
   return { state, events };
 }

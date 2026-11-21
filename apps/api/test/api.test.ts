@@ -341,15 +341,108 @@ describe('membuat dan mengaktifkan alur', () => {
 });
 
 describe('direktori dari CSV', () => {
-  it('impor menambah karyawan baru dengan password sementara dan memperbarui atasan', async () => {
-    const csv = 'id,email,name,department,manager_id,roles,is_admin\nu_rina,rina@contoh.test,Rina,produksi,u_maya,,0\nu_budi,budi@contoh.test,Budi (Operator Produksi),produksi,u_putra,,0';
+  it('impor menambah karyawan dengan password sementara; atasan mengikuti unit, bukan kolom per orang', async () => {
+    const csv = 'id,email,name,unit_id,title,is_admin\nu_rina,rina@contoh.test,Rina,produksi_line,Operator,0\nu_budi,budi@contoh.test,Budi (Operator Produksi),produksi,Operator,0';
     expect((await t.call('hana', 'POST', '/admin/directory', csv)).status).toBe(403);
+    expect((await t.call('hadi', 'POST', '/admin/directory', 'id,email,name,unit_id\nu_x,x@contoh.test,X,tidak_ada')).status).toBe(400);
     const res = await t.call('hadi', 'POST', '/admin/directory', csv);
     expect(res.body).toMatchObject({ imported: 2 });
     expect(res.body.created).toHaveLength(1);
     const login = await t.call(null, 'POST', '/login', { email: 'rina@contoh.test', password: res.body.created[0].temporaryPassword });
     expect(login.status).toBe(200);
-    const r = (await t.call('budi', 'POST', '/requests', { flowKey: 'leave', data: { leave_type: 'tahunan', start_date: '2026-12-10', end_date: '2026-12-11', days: 2 } })).body.id;
-    expect(await openTask('putra', r)).toBeTruthy();
+    const leave = { flowKey: 'leave', data: { leave_type: 'tahunan', start_date: '2026-12-10', end_date: '2026-12-11', days: 2 } };
+    // Budi kini langsung di unit Produksi: atasannya kepala Produksi. Rina di Produksi Line: atasannya kepala seksi.
+    const budi = (await t.call('budi', 'POST', '/requests', leave)).body.id;
+    const detail = (await t.call('budi', 'GET', `/requests/${budi}`)).body;
+    expect(detail.tasks[0]).toMatchObject({ assignees: ['u_putra'], basis: 'kepala Produksi' });
+    // Dikembalikan ke seksinya: permintaan berikutnya kembali ke kepala seksi.
+    await t.call('hadi', 'POST', '/admin/directory', 'id,email,name,unit_id,title\nu_budi,budi@contoh.test,Budi (Operator Produksi),produksi_line,Operator');
+    const back = (await t.call('budi', 'POST', '/requests', leave)).body.id;
+    expect((await t.call('budi', 'GET', `/requests/${back}`)).body.tasks[0].assignees).toEqual(['u_maya']);
+  });
+});
+
+describe('master organisasi', () => {
+  const propose = (user: string, change: object, extra: object = {}) => t.call(user, 'POST', '/org/changes', { change, ...extra });
+  const review = (user: string, id: string, decision = 'approve') => t.call(user, 'POST', `/org/changes/${id}/review`, { decision });
+  const org = async () => (await t.call('hana', 'GET', '/org')).body;
+
+  it('hanya pemilik organisasi yang mengusulkan; karyawan biasa tidak bisa melihat master', async () => {
+    expect((await t.call('budi', 'GET', '/org')).status).toBe(403);
+    expect((await org()).canEdit).toBe(true);
+    expect((await t.call('irfan', 'GET', '/org')).body.canEdit).toBe(false);
+    expect((await propose('irfan', { kind: 'unit_head', id: 'produksi_line', headUserId: null })).status).toBe(403);
+    expect((await t.call('hadi', 'PUT', '/org/owners', { userIds: ['u_hana'] })).status).toBe(400);
+    expect((await t.call('hadi', 'PUT', '/org/owners', { userIds: ['u_hana', 'u_hadi'] })).status).toBe(400);
+  });
+
+  it('usulan yang tidak sah ditolak dengan alasannya', async () => {
+    const bad = async (change: object) => (await propose('hana', change)).body.error as string;
+    expect(await bad({ kind: 'unit_head', id: 'produksi_line', headUserId: 'u_fajar' })).toMatch(/belum ditempatkan/);
+    expect(await bad({ kind: 'unit_upsert', id: 'direksi', name: 'Direksi', level: 'direksi', parentId: 'produksi' })).toMatch(/harus berada di bawah induknya/);
+    expect(await bad({ kind: 'unit_delete', id: 'produksi' })).toMatch(/masih punya unit/);
+    expect(await bad({ kind: 'user_place', userId: 'u_maya', unitId: 'it' })).toMatch(/masih kepala Produksi Line/);
+    expect(await bad({ kind: 'unit_head', id: 'hr', actingHeadUserId: 'u_sari' })).toMatch(/Plt hanya diisi kalau kepala definitif kosong|tanggal berakhir/);
+    expect(await bad({ kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', reason: '', startsAt: '2026-12-01', endsAt: '2027-01-01' })).toMatch(/Alasan/);
+    expect(await bad({ kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', reason: 'x', startsAt: '2026-01-01', endsAt: '2028-01-01' })).toMatch(/satu tahun/);
+    expect(await bad({ kind: 'authority_delete', id: 'finance_manager' })).toMatch(/masih dipakai alur/);
+  });
+
+  it('usulan ditinjau orang kedua; setelah berlaku, tugas terbuka pindah mengikuti struktur dan tercatat', async () => {
+    const leave = { flowKey: 'leave', data: { leave_type: 'tahunan', start_date: '2026-12-10', end_date: '2026-12-11', days: 2 } };
+    const id = (await t.call('budi', 'POST', '/requests', leave)).body.id;
+    expect(await openTask('maya', id)).toBeTruthy();
+
+    // Kosongkan kepala seksi: muncul temuan baru, dan tugas Maya naik ke kepala Produksi.
+    const res = await propose('hana', { kind: 'unit_head', id: 'produksi_line', headUserId: null }, { note: 'Maya dimutasi' });
+    expect(res.status).toBe(201);
+    expect(res.body.impact).toEqual([expect.objectContaining({ type: 'baru', message: expect.stringMatching(/Produksi Line: belum ada kepala/) })]);
+    expect((await review('hana', res.body.id)).status).toBe(403);
+    const applied = (await review('dewi', res.body.id)).body;
+    expect(applied.status).toBe('applied');
+    // Semua tugas terbuka milik Maya sebagai kepala seksi ikut pindah, termasuk dari tes sebelumnya.
+    expect(applied.movedTasks).toBeGreaterThanOrEqual(1);
+    expect(await openTask('maya', id)).toBeUndefined();
+    expect(await openTask('putra', id)).toBeTruthy();
+    const detail = (await t.call('budi', 'GET', `/requests/${id}`)).body;
+    expect(detail.tasks[0].basis).toMatch(/kepala Produksi; naik karena kepala Produksi Line kosong/);
+    expect(detail.timeline.map((e: any) => e.action)).toContain('task_reassigned');
+    expect((await org()).findings.map((f: any) => f.code)).toContain('UNIT_NO_HEAD');
+    expect((await review('dewi', res.body.id)).status).toBe(404);
+  });
+
+  it('usulan bertanggal berlaku ke depan dijadwalkan dan diterapkan cron', async () => {
+    const later = new Date(Date.now() + 3_600_000).toISOString();
+    const res = await propose('dewi', { kind: 'unit_head', id: 'produksi_line', headUserId: 'u_maya' }, { effectiveFrom: later });
+    expect((await review('hana', res.body.id)).body).toMatchObject({ status: 'scheduled' });
+    const { applyDueChanges } = await import('../src/org');
+    expect(await applyDueChanges(t.env.DB, t.deps, new Date())).toBe(0);
+    expect(await applyDueChanges(t.env.DB, t.deps, new Date(Date.now() + 7_200_000))).toBe(1);
+    expect((await org()).units.find((u: any) => u.id === 'produksi_line').headUserId).toBe('u_maya');
+  });
+
+  it('pengecualian pelaporan dan wewenang bercakupan mengubah routing setelah ditinjau', async () => {
+    const start = new Date(Date.now() - 60_000).toISOString();
+    const end = new Date(Date.now() + 30 * 86_400_000).toISOString();
+    const ex = await propose('hana', { kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', flowKey: 'leave', reason: 'Diperbantukan ke proyek ERP', startsAt: start, endsAt: end });
+    expect((await review('dewi', ex.body.id)).body.status).toBe('applied');
+    const leave = { flowKey: 'leave', data: { leave_type: 'tahunan', start_date: '2026-12-10', end_date: '2026-12-11', days: 2 } };
+    const id = (await t.call('budi', 'POST', '/requests', leave)).body.id;
+    const task = (await t.call('budi', 'GET', `/requests/${id}`)).body.tasks[0];
+    expect(task).toMatchObject({ assignees: ['u_irfan'], basis: 'pengecualian pelaporan: Diperbantukan ke proyek ERP' });
+
+    const add = await propose('hana', { kind: 'holder_add', authorityId: 'finance_manager', userId: 'u_pandu', scopeUnitId: 'it' });
+    expect((await review('dewi', add.body.id)).body.status).toBe('applied');
+    const holders = (await org()).holders.finance_manager;
+    expect(holders).toEqual(expect.arrayContaining([{ userId: 'u_fajar' }, { userId: 'u_pandu', scopeUnitId: 'it' }]));
+  });
+
+  it('uji cakupan melaporkan orang yang jalur approval-nya buntu', async () => {
+    const res = (await t.call('hana', 'GET', '/org/coverage')).body;
+    const leave = res.flows.find((f: any) => f.key === 'leave');
+    // Direktur tidak punya atasan, jadi cuti-nya tidak punya jalur.
+    expect(leave.gaps.map((g: any) => g.userId)).toContain('u_dewi');
+    expect(leave.gaps.map((g: any) => g.userId)).not.toContain('u_budi');
+    expect(leave.blocked).toBeGreaterThanOrEqual(1);
   });
 });

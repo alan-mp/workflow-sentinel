@@ -11,8 +11,9 @@ import {
 } from '@sentinel/engine';
 import { drafterFromEnv } from './ai';
 import type { AppEnv, Deps, SessionUser } from './env';
+import { rerouteAll } from './org';
 import { hashPassword, randomToken } from './security';
-import { auditStatement, getVersion, notificationStatement, rowToUser, rowToVersion, type Citation, type StoredVersion } from './store';
+import { auditStatement, getVersion, loadOrg, notificationStatement, rowToVersion, type Citation, type StoredVersion } from './store';
 
 type Row = Record<string, unknown>;
 
@@ -122,8 +123,9 @@ export function adminRoutes(deps: Deps) {
   });
 
   app.get('/users', async (c) => {
-    const { results } = await c.env.DB.prepare('SELECT * FROM users ORDER BY name').all<Row>();
-    return c.json(results.map(rowToUser));
+    const org = await loadOrg(c.env.DB);
+    const unitName = new Map(org.units.map((u) => [u.id, u.name]));
+    return c.json(org.users.map((u) => ({ id: u.id, name: u.name, department: (u.unitId && unitName.get(u.unitId)) || u.department, unitId: u.unitId, title: u.title })));
   });
 
   app.post('/drafts', async (c) => {
@@ -167,7 +169,7 @@ export function adminRoutes(deps: Deps) {
       v.sopDocumentId
         ? c.env.DB.prepare('SELECT id, name, content FROM sop_documents WHERE id = ?').bind(v.sopDocumentId).first()
         : null,
-      c.env.DB.prepare('SELECT DISTINCT r.value AS role FROM users u, json_each(u.roles) r ORDER BY 1').all<Row>(),
+      c.env.DB.prepare('SELECT id AS role, name FROM authorities ORDER BY 1').all<Row>(),
     ]);
     return c.json({
       ...v,
@@ -175,6 +177,7 @@ export function adminRoutes(deps: Deps) {
       chat: chat.results,
       sop,
       roles: roles.results.map((r) => r.role),
+      roleNames: Object.fromEntries(roles.results.map((r) => [r.role, r.name])),
       canEdit,
       canActivate: canEdit && v.status === 'draft' && !v.editedBy.includes(c.var.user.id),
     });
@@ -206,10 +209,9 @@ export function adminRoutes(deps: Deps) {
     const body = await c.req.json<{ definition: unknown; requesterId: string; data: Record<string, unknown> }>();
     const checked = validateDefinition(body.definition);
     if (!checked.definition) return c.json({ error: 'Definisi belum valid', issues: checked.issues }, 400);
-    const { results } = await c.env.DB.prepare('SELECT * FROM users').all<Row>();
-    const users = results.map(rowToUser);
-    const steps = await simulate(checked.definition, { requesterId: body.requesterId, data: body.data ?? {} }, new InMemoryDirectory(users));
-    return c.json({ steps, names: Object.fromEntries(users.map((u) => [u.id, u.name])) });
+    const org = await loadOrg(c.env.DB);
+    const steps = await simulate(checked.definition, { requesterId: body.requesterId, data: body.data ?? {} }, new InMemoryDirectory(org));
+    return c.json({ steps, names: Object.fromEntries(org.users.map((u) => [u.id, u.name])) });
   });
 
   app.post('/drafts/:id/sop', async (c) => {
@@ -256,7 +258,7 @@ export function adminRoutes(deps: Deps) {
     const [history, sop, roles] = await Promise.all([
       db.prepare('SELECT role, content FROM chat_messages WHERE flow_version_id = ? ORDER BY id').bind(draft.id).all<Row>(),
       draft.sopDocumentId ? db.prepare('SELECT content FROM sop_documents WHERE id = ?').bind(draft.sopDocumentId).first<Row>() : null,
-      db.prepare('SELECT DISTINCT r.value AS role FROM users u, json_each(u.roles) r ORDER BY 1').all<Row>(),
+      db.prepare('SELECT id AS role FROM authorities ORDER BY 1').all<Row>(),
     ]);
     const sopText = (sop?.content as string | undefined) ?? undefined;
 
@@ -376,21 +378,33 @@ export function adminRoutes(deps: Deps) {
     return c.json(results);
   });
 
-  // Impor direktori dari CSV: id,email,name,department,manager_id,roles,is_admin (roles dipisah "|").
+  // Impor karyawan dari CSV: id,email,name,unit_id,title,is_admin. Atasan dan wewenang tidak diimpor:
+  // atasan dihitung dari unit, dan wewenang ditetapkan lewat usulan yang ditinjau.
   app.post('/directory', async (c) => {
     const denied = sysadminOnly(c);
     if (denied) return denied;
     const lines = (await c.req.text()).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const header = lines.shift()?.split(',').map((h) => h.trim());
-    const need = ['id', 'email', 'name', 'department'];
+    const need = ['id', 'email', 'name'];
     if (!header || need.some((h) => !header.includes(h))) return c.json({ error: `Kolom wajib: ${need.join(', ')}` }, 400);
+    const org = await loadOrg(c.env.DB);
+    const units = new Map(org.units.map((u) => [u.id, u]));
+    const departmentOf = (unitId: string): string => {
+      for (let u = units.get(unitId); u; u = u.parentId ? units.get(u.parentId) : undefined) {
+        if (u.level === 'departemen') return u.id;
+      }
+      return unitId;
+    };
     const created: { email: string; temporaryPassword: string }[] = [];
     const stmts: D1PreparedStatement[] = [];
     for (const line of lines) {
       const cells = line.split(',').map((x) => x.trim());
       const row = Object.fromEntries(header.map((h, i) => [h, cells[i] ?? '']));
       if (need.some((h) => !row[h])) return c.json({ error: `Baris tidak lengkap: ${line}` }, 400);
-      const exists = await c.env.DB.prepare('SELECT 1 FROM users WHERE id = ?').bind(row.id).first();
+      if (row.unit_id && !units.has(row.unit_id)) return c.json({ error: `Unit ${row.unit_id} belum ada; impor daftar unit lebih dulu (${row.name})` }, 400);
+      const heads = org.units.find((u) => u.headUserId === row.id && u.id !== row.unit_id);
+      if (heads && row.unit_id) return c.json({ error: `${row.name} masih kepala ${heads.name}; ganti kepalanya lewat usulan sebelum memindahkan` }, 400);
+      const exists = org.users.some((u) => u.id === row.id);
       let hash: string | null = null;
       if (!exists) {
         const temporaryPassword = randomToken(6);
@@ -399,23 +413,27 @@ export function adminRoutes(deps: Deps) {
       }
       stmts.push(
         c.env.DB.prepare(
-          `INSERT INTO users (id, email, name, department, manager_id, roles, is_admin, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO users (id, email, name, department, unit_id, title, is_admin, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET email = excluded.email, name = excluded.name, department = excluded.department,
-             manager_id = excluded.manager_id, roles = excluded.roles, is_admin = excluded.is_admin`,
+             unit_id = COALESCE(excluded.unit_id, users.unit_id), title = COALESCE(excluded.title, users.title), is_admin = excluded.is_admin`,
         ).bind(
           row.id,
           row.email!.toLowerCase(),
           row.name,
-          row.department,
-          row.manager_id || null,
-          JSON.stringify((row.roles ?? '').split('|').map((r) => r.trim()).filter(Boolean)),
+          row.unit_id ? departmentOf(row.unit_id) : row.department || '',
+          row.unit_id || null,
+          row.title || null,
           row.is_admin === '1' || row.is_admin === 'true' ? 1 : 0,
           hash,
         ),
       );
     }
-    if (stmts.length) await c.env.DB.batch(stmts);
-    return c.json({ imported: stmts.length, created });
+    if (stmts.length) {
+      stmts.push(auditStatement(c.env.DB, { at: new Date().toISOString(), actor: { type: 'user', id: c.var.user.id }, action: 'directory_imported', flowVersionId: 'org', detail: { count: stmts.length } }));
+      await c.env.DB.batch(stmts);
+      await rerouteAll(c.env.DB, deps, new Date());
+    }
+    return c.json({ imported: Math.max(stmts.length - 1, 0), created });
   });
 
   return app;

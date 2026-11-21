@@ -5,6 +5,8 @@ Aplikasi approval workflow internal: cuti/izin, akses IT, dan permintaan pembeli
 ## Struktur
 
 - `packages/engine`: mesin alur tanpa I/O (definisi, tabel aturan, routing, pemisahan tugas, SLA, simulasi, versi).
+  Kondisi dan tabel aturan dievaluasi oleh [json-rules-engine](https://github.com/CacheControl/json-rules-engine) (versi dikunci) lewat `src/rules.ts`;
+  browser hanya memakai `@sentinel/engine/model` (bentuk definisi dan pemeriksaannya), evaluasi aturan hanya di server.
 - `apps/api`: Cloudflare Worker (Hono) dengan D1, R2, Cron Trigger, adapter ERP/email, dan penyusun draf AI.
 - `apps/web`: React + Vite (kotak masuk, permintaan, editor visual, chat).
 
@@ -22,6 +24,17 @@ Akun contoh (password `demo1234`): `budi@contoh.test` (pemohon), `maya@contoh.te
 `irfan@contoh.test` dan `sari@contoh.test` (pemilik proses akses IT), `hadi@contoh.test` (admin sistem).
 
 Pemilik proses menyusun dan mengaktifkan alur miliknya; admin sistem hanya menunjuk pemilik dan mengimpor direktori.
+
+## Master organisasi
+
+Atasan tidak disimpan per orang. Ia dihitung dari pohon unit (`org_units`) dengan urutan tetap: pengecualian pelaporan yang
+masih berlaku, lalu kepala unit atau Plt, lalu naik ke unit di atasnya kalau kosong. Wewenang ("siapa berhak menyetujui hal
+ini") ada di matriks wewenang dan bisa dibatasi ke satu cabang unit. Setiap penunjukan approver menyimpan alasannya.
+
+Perubahan struktur diusulkan pemilik master organisasi (contoh: `hana@contoh.test`, `dewi@contoh.test`), ditinjau pemilik lain,
+lalu berlaku pada tanggalnya; tugas yang masih terbuka dipindahkan mengikuti struktur baru. Menu Organisasi menampilkan pohon,
+temuan risiko, dan uji cakupan. Isi awal diimpor admin sistem: `POST /api/org/import/units` (CSV `id,name,level,parent_id`)
+lalu `POST /api/admin/directory` (CSV `id,email,name,unit_id,title,is_admin`).
 
 Chat AI butuh file `apps/api/.dev.vars`:
 
@@ -41,5 +54,4 @@ npx wrangler secret put ANTHROPIC_API_KEY
 cd ../.. && npm run deploy
 ```
 
-Isi `AI_GATEWAY_URL` di `wrangler.jsonc`. Direktori karyawan diimpor lewat
-`POST /api/admin/directory` (CSV: `id,email,name,department,manager_id,roles,is_admin`, peran dipisah `|`).
+Isi `AI_GATEWAY_URL` di `wrangler.jsonc`. Unit dan karyawan diimpor lewat menu Organisasi > Pengaturan.

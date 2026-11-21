@@ -14,7 +14,7 @@ for (const i of result.issues) console.log(`[${i.level}] ${i.message}`);
 if (!result.definition) process.exit(1);
 
 const name = (id: string) => users.find((u) => u.id === id)?.name ?? id;
-const steps = await simulate(result.definition, { requesterId, data: JSON.parse(json) }, new InMemoryDirectory(users));
+const steps = await simulate(result.definition, { requesterId, data: JSON.parse(json) }, new InMemoryDirectory({ users, units: read('org') }));
 console.log(`${result.definition.name} - pemohon: ${name(requesterId)}`);
 steps.forEach((s, i) => {
   const who = s.error ? `GAGAL: ${s.error}` : s.skipped ? '(dilewati)' : s.userIds.map(name).join(' atau ');

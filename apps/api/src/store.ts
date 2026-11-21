@@ -1,10 +1,14 @@
 import {
+  InMemoryDirectory,
   flattenSteps,
   type AuditEvent,
+  type AuthorityHolder,
   type Delegation,
   type Directory,
   type FlowDefinition,
   type FlowVersion,
+  type OrgUnit,
+  type ReportingException,
   type RequestState,
   type User,
 } from '@sentinel/engine';
@@ -16,23 +20,83 @@ export const rowToUser = (r: Row): User => ({
   id: r.id as string,
   name: r.name as string,
   department: r.department as string,
-  managerId: (r.manager_id as string | null) ?? undefined,
-  roles: JSON.parse(r.roles as string),
+  unitId: (r.unit_id as string | null) ?? undefined,
 });
 
-/** Direktori organisasi dari tabel users (diisi lewat impor CSV). */
-export class D1Directory implements Directory {
-  constructor(private db: D1Database) {}
-  async getUser(id: string) {
-    const r = await this.db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<Row>();
-    return r ? rowToUser(r) : undefined;
+export const rowToUnit = (r: Row): OrgUnit => ({
+  id: r.id as string,
+  name: r.name as string,
+  level: r.level as OrgUnit['level'],
+  parentId: (r.parent_id as string | null) ?? undefined,
+  headUserId: (r.head_user_id as string | null) ?? undefined,
+  actingHeadUserId: (r.acting_head_user_id as string | null) ?? undefined,
+  actingUntil: (r.acting_until as string | null) ?? undefined,
+});
+
+export interface OrgPerson extends User {
+  email: string;
+  title?: string;
+}
+export interface StoredException extends ReportingException {
+  id: string;
+}
+export interface OrgData {
+  users: OrgPerson[];
+  units: OrgUnit[];
+  exceptions: StoredException[];
+  authorities: { id: string; name: string; description: string }[];
+  holders: Record<string, AuthorityHolder[]>;
+}
+
+/** Seluruh master organisasi dalam satu potret; cukup kecil untuk dibaca sekaligus. */
+export async function loadOrg(db: D1Database): Promise<OrgData> {
+  const [users, units, exceptions, authorities, holders] = await db.batch<Row>([
+    db.prepare('SELECT id, email, name, department, unit_id, title FROM users ORDER BY name'),
+    db.prepare('SELECT * FROM org_units ORDER BY name'),
+    db.prepare('SELECT * FROM reporting_exceptions ORDER BY starts_at'),
+    db.prepare('SELECT * FROM authorities ORDER BY name'),
+    db.prepare('SELECT * FROM authority_holders ORDER BY authority_id, user_id'),
+  ]);
+  const byAuthority: Record<string, AuthorityHolder[]> = {};
+  for (const a of authorities!.results) byAuthority[a.id as string] = [];
+  for (const h of holders!.results) {
+    (byAuthority[h.authority_id as string] ??= []).push({ userId: h.user_id as string, scopeUnitId: (h.scope_unit_id as string) || undefined });
   }
-  async getUsersByRole(role: string) {
-    const { results } = await this.db
-      .prepare('SELECT u.* FROM users u, json_each(u.roles) r WHERE r.value = ? ORDER BY u.id')
-      .bind(role)
-      .all<Row>();
-    return results.map(rowToUser);
+  return {
+    users: users!.results.map((r) => ({ ...rowToUser(r), email: r.email as string, title: (r.title as string | null) ?? undefined })),
+    units: units!.results.map(rowToUnit),
+    exceptions: exceptions!.results.map((r) => ({
+      id: r.id as string,
+      userId: r.user_id as string,
+      toUserId: r.to_user_id as string,
+      flowKey: (r.flow_key as string | null) ?? undefined,
+      reason: r.reason as string,
+      startsAt: r.starts_at as string,
+      endsAt: r.ends_at as string,
+    })),
+    authorities: authorities!.results.map((r) => ({ id: r.id as string, name: r.name as string, description: r.description as string })),
+    holders: byAuthority,
+  };
+}
+
+/** Direktori organisasi dari database; potretnya dibaca sekali per pemakaian. */
+export class D1Directory implements Directory {
+  private loaded?: Promise<InMemoryDirectory>;
+  constructor(private db: D1Database) {}
+  private get dir() {
+    return (this.loaded ??= loadOrg(this.db).then((org) => new InMemoryDirectory(org)));
+  }
+  async getUser(id: string) {
+    return (await this.dir).getUser(id);
+  }
+  async getUnit(id: string) {
+    return (await this.dir).getUnit(id);
+  }
+  async getExceptions(userId: string) {
+    return (await this.dir).getExceptions(userId);
+  }
+  async getAuthorityHolders(authorityId: string) {
+    return (await this.dir).getAuthorityHolders(authorityId);
   }
 }
 
@@ -171,6 +235,9 @@ export async function noticesFor(
         break;
       case 'sla_reminder':
         push(await withDelegates(d.assignees as string[]), `Pengingat: ${label} melewati tenggat (${stepName(e.stepId)}).`);
+        break;
+      case 'task_reassigned':
+        push(await withDelegates(d.assignees as string[]), `${label} dialihkan ke Anda karena perubahan struktur organisasi (${stepName(e.stepId)}).`);
         break;
       case 'sla_escalated':
         push(d.added as string[], `Eskalasi: ${label} belum diputuskan dan kini juga menunggu Anda (${stepName(e.stepId)}).`);

@@ -1,35 +1,7 @@
-import type { ApproverSpec, Condition, DirectApprover, Field, FlowDefinition, Step } from './definition';
+import type { ApproverSpec, DirectApprover, Field, FlowDefinition, Step } from './definition';
+import { superiorAt, superiorOf, unitHeadAt, withinUnit, type OrgContext } from './org';
+import { firstMatch, type Facts } from './rules';
 import { EngineError, type Directory, type User } from './types';
-
-export type Facts = Record<string, unknown>;
-
-export function buildFacts(data: Record<string, unknown>, requester: User): Facts {
-  return { ...data, 'requester.department': requester.department };
-}
-
-/** Semua kondisi harus terpenuhi. Field yang kosong tidak pernah cocok. */
-export function matches(conditions: Condition[], facts: Facts): boolean {
-  return conditions.every((c) => {
-    const actual = facts[c.field];
-    if (actual === undefined || actual === null) return false;
-    switch (c.op) {
-      case 'eq':
-        return actual === c.value;
-      case 'neq':
-        return actual !== c.value;
-      case 'in':
-        return Array.isArray(c.value) && c.value.includes(actual as never);
-      case 'gt':
-        return (actual as never) > (c.value as never);
-      case 'gte':
-        return (actual as never) >= (c.value as never);
-      case 'lt':
-        return (actual as never) < (c.value as never);
-      case 'lte':
-        return (actual as never) <= (c.value as never);
-    }
-  });
-}
 
 export function validateData(fields: Field[], data: Record<string, unknown>): void {
   const known = new Set(fields.map((f) => f.key));
@@ -61,6 +33,8 @@ export interface Resolution {
   requesterExcluded: boolean;
   /** Pemohon satu-satunya approver, jadi dialihkan ke atasannya. */
   reroutedToManager: boolean;
+  /** Penjelasan untuk manusia: kenapa approver ini yang ditunjuk. */
+  basis?: string;
 }
 
 export interface ResolveInput {
@@ -68,56 +42,73 @@ export interface ResolveInput {
   requester: User;
   facts: Facts;
   directory: Directory;
+  /** Waktu routing; menentukan Plt dan pengecualian yang berlaku. Bawaan: sekarang. */
+  now?: Date;
+  /** Orang yang sudah menyetujui tahap sebelumnya pada putaran ini. */
+  alreadyApproved?: string[];
 }
 
-async function managerAt(requester: User, level: number, directory: Directory): Promise<User> {
-  let current = requester;
-  for (let i = 0; i < level; i++) {
-    const next = current.managerId ? await directory.getUser(current.managerId) : undefined;
-    if (!next) {
-      throw new EngineError('ROUTING', `Atasan tingkat ${i + 1} dari ${requester.id} tidak ditemukan`);
+interface Candidates {
+  ids: string[];
+  basis: string;
+  /** Ditentukan dari struktur organisasi, bukan dari wewenang atau penunjukan. */
+  structural: boolean;
+}
+
+async function resolveCandidates(spec: DirectApprover, requester: User, ctx: OrgContext, exclude: string[] = []): Promise<Candidates> {
+  switch (spec.kind) {
+    case 'manager': {
+      const r = await superiorAt(requester, spec.level, ctx, exclude);
+      return { ids: [r.user.id], basis: r.basis, structural: true };
     }
-    current = next;
+    case 'unit_head': {
+      const r = await unitHeadAt(requester, spec.level, ctx, exclude);
+      return { ids: [r.user.id], basis: r.basis, structural: true };
+    }
+    case 'role': {
+      const ids: string[] = [];
+      for (const h of await ctx.directory.getAuthorityHolders(spec.role)) {
+        if (h.scopeUnitId && !(await withinUnit(requester.unitId, h.scopeUnitId, ctx.directory))) continue;
+        if ((await ctx.directory.getUser(h.userId)) && !ids.includes(h.userId)) ids.push(h.userId);
+      }
+      if (ids.length === 0) throw new EngineError('ROUTING', `Tidak ada pemegang wewenang ${spec.role} untuk unit pemohon`);
+      return { ids, basis: `pemegang wewenang ${spec.role}`, structural: false };
+    }
+    case 'user': {
+      if (!(await ctx.directory.getUser(spec.userId))) {
+        throw new EngineError('ROUTING', `User ${spec.userId} tidak ditemukan`);
+      }
+      return { ids: [spec.userId], basis: 'ditunjuk langsung di alur', structural: false };
+    }
   }
-  return current;
 }
 
 export async function resolveDirect(
   spec: DirectApprover,
   requester: User,
   directory: Directory,
+  options: { now?: Date; flowKey?: string } = {},
 ): Promise<string[]> {
-  switch (spec.kind) {
-    case 'manager':
-      return [(await managerAt(requester, spec.level, directory)).id];
-    case 'role': {
-      const users = await directory.getUsersByRole(spec.role);
-      if (users.length === 0) throw new EngineError('ROUTING', `Tidak ada pemegang peran ${spec.role}`);
-      return users.map((u) => u.id);
-    }
-    case 'user': {
-      if (!(await directory.getUser(spec.userId))) {
-        throw new EngineError('ROUTING', `User ${spec.userId} tidak ditemukan`);
-      }
-      return [spec.userId];
-    }
-  }
+  return (await resolveCandidates(spec, requester, { directory, now: options.now ?? new Date(), flowKey: options.flowKey })).ids;
 }
 
 /**
- * Menentukan approver sebuah langkah. Pemohon tidak pernah menjadi approver
- * permintaannya sendiri: ia dikeluarkan dari daftar, dan kalau ia satu-satunya
- * kandidat, langkah dialihkan ke atasan langsungnya.
+ * Menentukan approver sebuah langkah beserta alasannya. Dua jaminan berlaku
+ * apa pun isi alurnya: pemohon tidak pernah menjadi approver permintaannya
+ * sendiri, dan approver dari jalur struktur tidak mengulang orang yang sudah
+ * menyetujui tahap sebelumnya selama masih ada atasan di atasnya.
  */
 export async function resolveApprovers(spec: ApproverSpec, input: ResolveInput): Promise<Resolution> {
   const { definition, requester, facts, directory } = input;
+  const ctx: OrgContext = { directory, now: input.now ?? new Date(), flowKey: definition.key };
   let direct: DirectApprover;
   let tableRow: Resolution['tableRow'];
 
   if (spec.kind === 'table') {
     const table = definition.tables.find((t) => t.id === spec.tableId);
     if (!table) throw new EngineError('ROUTING', `Tabel aturan ${spec.tableId} tidak ada`);
-    const row = table.rows.find((r) => matches(r.when, facts));
+    const hit = await firstMatch(table.rows, facts);
+    const row = hit === undefined ? undefined : table.rows[hit];
     if (!row) throw new EngineError('ROUTING', `Tidak ada baris yang cocok di tabel ${table.id}`);
     tableRow = { tableId: table.id, rowId: row.id };
     if (row.approver.kind === 'none') {
@@ -128,19 +119,32 @@ export async function resolveApprovers(spec: ApproverSpec, input: ResolveInput):
     direct = spec;
   }
 
-  const candidates = await resolveDirect(direct, requester, directory);
-  const others = candidates.filter((id) => id !== requester.id);
-  const requesterExcluded = others.length !== candidates.length;
-  if (others.length > 0) {
-    return { assignees: others, skipped: false, tableRow, requesterExcluded, reroutedToManager: false };
+  let found = await resolveCandidates(direct, requester, ctx);
+  const repeated = found.structural ? found.ids.find((id) => input.alreadyApproved?.includes(id)) : undefined;
+  if (repeated) {
+    try {
+      const higher = await resolveCandidates(direct, requester, ctx, input.alreadyApproved);
+      const name = (await directory.getUser(repeated))?.name ?? repeated;
+      found = { ...higher, basis: `${higher.basis}; naik karena ${name} sudah menyetujui tahap sebelumnya` };
+    } catch (e) {
+      // Tidak ada lagi atasan di atasnya: orang yang sama tetap menjadi approver.
+      if (!(e instanceof EngineError)) throw e;
+    }
   }
-  const manager = await managerAt(requester, 1, directory);
+
+  const others = found.ids.filter((id) => id !== requester.id);
+  const requesterExcluded = others.length !== found.ids.length;
+  if (others.length > 0) {
+    return { assignees: others, skipped: false, tableRow, requesterExcluded, reroutedToManager: false, basis: found.basis };
+  }
+  const manager = await superiorOf(requester, ctx);
   return {
-    assignees: [manager.id],
+    assignees: [manager.user.id],
     skipped: false,
     tableRow,
     requesterExcluded: true,
     reroutedToManager: true,
+    basis: `${manager.basis}; dialihkan karena pemohon satu-satunya ${found.basis}`,
   };
 }
 
@@ -166,7 +170,8 @@ export async function walk(steps: Step[], facts: Facts, handler: WalkHandler): P
         await handler.notify(step);
         break;
       case 'condition': {
-        const branch = step.branches.find((b) => matches(b.when, facts));
+        const hit = await firstMatch(step.branches, facts);
+        const branch = hit === undefined ? undefined : step.branches[hit];
         if (!(await walk(branch ? branch.steps : step.otherwise, facts, handler))) return false;
         break;
       }
@@ -183,13 +188,4 @@ export async function walk(steps: Step[], facts: Facts, handler: WalkHandler): P
     }
   }
   return true;
-}
-
-/** Semua langkah, termasuk yang bersarang di cabang. */
-export function flattenSteps(steps: Step[]): Step[] {
-  return steps.flatMap((s) => {
-    if (s.type === 'condition') return [s, ...s.branches.flatMap((b) => flattenSteps(b.steps)), ...flattenSteps(s.otherwise)];
-    if (s.type === 'parallel') return [s, ...s.branches.flatMap(flattenSteps)];
-    return [s];
-  });
 }
