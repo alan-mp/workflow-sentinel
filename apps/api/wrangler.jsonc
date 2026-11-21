@@ -2,7 +2,9 @@
   "name": "workflow-sentinel",
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-21",
-  "compatibility_flags": ["nodejs_compat"],
+  // global_fetch_strictly_public: outbound fetch goes out as a public request. Without it a webhook to this
+  // Worker's own workers.dev host (the demo receiver) fails with error 1042.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
     "directory": "../web/dist",
     "not_found_handling": "single-page-application",
