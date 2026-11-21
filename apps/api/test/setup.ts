@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getPlatformProxy } from 'wrangler';
 import type { AiDrafter } from '../src/ai';
@@ -12,7 +12,10 @@ const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 export async function setup(drafter?: AiDrafter) {
   const proxy = await getPlatformProxy<Env>({ configPath: path('../wrangler.jsonc'), persist: false });
   const env = proxy.env;
-  const migration = readFileSync(path('../migrations/0001_init.sql'), 'utf8');
+  const migration = readdirSync(path('../migrations'))
+    .sort()
+    .map((f) => readFileSync(path(`../migrations/${f}`), 'utf8'))
+    .join('\n');
   const statements = [...migration.split(/;\s*$/m), ...(await seedSql()).split(/;\s*$/m)].map((s) => s.trim()).filter(Boolean);
   for (const sql of statements) await env.DB.prepare(sql).run();
 

@@ -19,6 +19,8 @@ export interface Delegation {
   toUserId: string;
   startsAt: string;
   endsAt: string;
+  /** Pembuat delegasi; berbeda dari `fromUserId` kalau dibuatkan oleh atasan. */
+  createdBy?: string;
 }
 
 /** AI punya tipe aktor sendiri supaya bisa ditolak secara eksplisit. */

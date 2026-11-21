@@ -211,6 +211,7 @@ export async function act(
     throw new EngineError('SOD_VIOLATION', 'Pemohon tidak boleh memutuskan permintaannya sendiri');
   }
   let onBehalfOf: string | undefined;
+  let delegatedBy: string | undefined;
   if (!task.assignees.includes(decision.actorId)) {
     const delegation = (ctx.delegations ?? []).find(
       (d) =>
@@ -221,6 +222,7 @@ export async function act(
     );
     if (!delegation) throw new EngineError('NOT_ASSIGNEE', 'Anda bukan approver untuk tugas ini');
     onBehalfOf = delegation.fromUserId;
+    if (delegation.createdBy && delegation.createdBy !== delegation.fromUserId) delegatedBy = delegation.createdBy;
   }
 
   const outcome = { approve: 'approved', reject: 'rejected', request_revision: 'revision_requested' } as const;
@@ -237,7 +239,7 @@ export async function act(
       action: `task_${task.status}`,
       stepId: task.stepId,
       taskId: task.id,
-      detail: { onBehalfOf, comment: decision.comment, attachmentIds: decision.attachmentIds },
+      detail: { onBehalfOf, delegatedBy, comment: decision.comment, attachmentIds: decision.attachmentIds },
     },
   ];
 

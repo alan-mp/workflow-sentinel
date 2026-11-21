@@ -17,6 +17,7 @@ import {
   activeDelegations,
   auditStatement,
   commit,
+  notificationStatement,
   currentVersions,
   getVersion,
   loadRequest,
@@ -278,37 +279,68 @@ export function requestRoutes(deps: Deps) {
     });
   });
 
+  app.get('/reports', async (c) => {
+    const { results } = await c.env.DB.prepare('SELECT id, name FROM users WHERE manager_id = ? ORDER BY name').bind(c.var.user.id).all();
+    return c.json(results);
+  });
+
   app.get('/delegations', async (c) => {
     const { results } = await c.env.DB.prepare(
-      `SELECT d.id, d.from_user_id, d.to_user_id, d.starts_at, d.ends_at, f.name AS from_name, t.name AS to_name
+      `SELECT d.id, d.from_user_id, d.to_user_id, d.starts_at, d.ends_at, d.created_by,
+              f.name AS from_name, t.name AS to_name, b.name AS created_by_name
        FROM delegations d JOIN users f ON f.id = d.from_user_id JOIN users t ON t.id = d.to_user_id
-       WHERE (d.from_user_id = ? OR d.to_user_id = ?) AND d.ends_at > ? ORDER BY d.starts_at`,
+       LEFT JOIN users b ON b.id = d.created_by
+       WHERE (d.from_user_id = ?1 OR d.to_user_id = ?1 OR d.created_by = ?1) AND d.ends_at > ?2 ORDER BY d.starts_at`,
     )
-      .bind(c.var.user.id, c.var.user.id, new Date().toISOString())
+      .bind(c.var.user.id, new Date().toISOString())
       .all();
     return c.json(results);
   });
 
   app.post('/delegations', async (c) => {
-    const body = await c.req.json<{ toUserId: string; startsAt: string; endsAt: string }>();
+    const body = await c.req.json<{ toUserId: string; startsAt: string; endsAt: string; fromUserId?: string }>();
+    const me = c.var.user;
+    const fromUserId = body.fromUserId || me.id;
     const starts = Date.parse(body.startsAt);
     const ends = Date.parse(body.endsAt);
     if (Number.isNaN(starts) || Number.isNaN(ends) || ends <= starts) {
       return c.json({ error: 'Delegasi wajib punya waktu mulai dan selesai yang valid' }, 400);
     }
-    if (body.toUserId === c.var.user.id) return c.json({ error: 'Tidak bisa mendelegasikan ke diri sendiri' }, 400);
-    if (!(await new D1Directory(c.env.DB).getUser(body.toUserId))) return c.json({ error: 'User tidak ditemukan' }, 400);
+    if (body.toUserId === fromUserId) return c.json({ error: 'Tidak bisa mendelegasikan ke orang yang sama' }, 400);
+    const directory = new D1Directory(c.env.DB);
+    const [from, to] = await Promise.all([directory.getUser(fromUserId), directory.getUser(body.toUserId)]);
+    if (!from || !to) return c.json({ error: 'User tidak ditemukan' }, 400);
+    // Atas nama orang lain hanya boleh oleh atasan langsungnya.
+    if (fromUserId !== me.id && from.managerId !== me.id) {
+      return c.json({ error: 'Hanya atasan langsung yang boleh membuat delegasi atas nama orang lain' }, 403);
+    }
     const id = randomToken(8);
-    await c.env.DB.prepare(
-      'INSERT INTO delegations (id, from_user_id, to_user_id, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-    )
-      .bind(id, c.var.user.id, body.toUserId, new Date(starts).toISOString(), new Date(ends).toISOString(), new Date().toISOString())
-      .run();
+    const now = new Date().toISOString();
+    const fmt = (ms: number) => new Date(ms).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' });
+    const period = `${fmt(starts)} sampai ${fmt(ends)} WIB`;
+    const stmts = [
+      c.env.DB.prepare(
+        'INSERT INTO delegations (id, from_user_id, to_user_id, starts_at, ends_at, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ).bind(id, fromUserId, body.toUserId, new Date(starts).toISOString(), new Date(ends).toISOString(), now, me.id),
+      notificationStatement(c.env.DB, { userId: body.toUserId, message: `Anda menerima delegasi approval dari ${from.name} (${period}).` }, now),
+    ];
+    if (fromUserId !== me.id) {
+      stmts.push(
+        notificationStatement(
+          c.env.DB,
+          { userId: fromUserId, message: `${me.name} mendelegasikan approval Anda ke ${to.name} (${period}).` },
+          now,
+        ),
+      );
+    }
+    await c.env.DB.batch(stmts);
     return c.json({ id }, 201);
   });
 
   app.delete('/delegations/:id', async (c) => {
-    await c.env.DB.prepare('DELETE FROM delegations WHERE id = ? AND from_user_id = ?').bind(c.req.param('id'), c.var.user.id).run();
+    await c.env.DB.prepare('DELETE FROM delegations WHERE id = ?1 AND (from_user_id = ?2 OR created_by = ?2)')
+      .bind(c.req.param('id'), c.var.user.id)
+      .run();
     return c.json({ ok: true });
   });
 

@@ -130,7 +130,7 @@ export async function activeDelegations(db: D1Database, now: Date, where: 'to' |
   const column = where === 'to' ? 'to_user_id' : 'from_user_id';
   const { results } = await db
     .prepare(
-      `SELECT from_user_id, to_user_id, starts_at, ends_at FROM delegations
+      `SELECT from_user_id, to_user_id, starts_at, ends_at, created_by FROM delegations
        WHERE starts_at <= ? AND ends_at > ? AND ${column} IN (${userIds.map(() => '?').join(',')})`,
     )
     .bind(at, at, ...userIds)
@@ -140,6 +140,7 @@ export async function activeDelegations(db: D1Database, now: Date, where: 'to' |
     toUserId: r.to_user_id as string,
     startsAt: r.starts_at as string,
     endsAt: r.ends_at as string,
+    createdBy: (r.created_by as string | null) ?? undefined,
   }));
 }
 

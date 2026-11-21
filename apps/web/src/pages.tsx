@@ -306,6 +306,8 @@ export function RequestDetail({ id }: { id: string }) {
               {ACTION[e.action] ?? e.action}
               {e.stepName ? ` (${e.stepName})` : ''}
               {e.action === 'task_created' ? ` ${e.detail.assignees.map(name).join(' atau ')}` : ''}
+              {e.detail?.onBehalfOf ? ` atas nama ${name(e.detail.onBehalfOf)}` : ''}
+              {e.detail?.delegatedBy ? ` (delegasi dibuat oleh ${name(e.detail.delegatedBy)})` : ''}
               {e.detail?.reference ? ` ${e.detail.reference}` : ''}
               {e.detail?.comment ? <blockquote>{e.detail.comment}</blockquote> : null}
             </li>
@@ -321,6 +323,8 @@ const localInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 6
 export function Delegations({ me }: { me: Me }) {
   const [list, reload] = useLoad<any[]>('/delegations');
   const [users] = useLoad<any[]>('/users');
+  const [reports] = useLoad<any[]>('/reports');
+  const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [start, setStart] = useState(localInput(new Date()));
   const [end, setEnd] = useState(localInput(new Date(Date.now() + 7 * 86_400_000)));
@@ -329,7 +333,7 @@ export function Delegations({ me }: { me: Me }) {
     e.preventDefault();
     setError('');
     try {
-      await api('POST', '/delegations', { toUserId: to, startsAt: new Date(start).toISOString(), endsAt: new Date(end).toISOString() });
+      await api('POST', '/delegations', { fromUserId: from || undefined, toUserId: to, startsAt: new Date(start).toISOString(), endsAt: new Date(end).toISOString() });
       reload();
     } catch (err: any) {
       setError(err.message);
@@ -347,9 +351,10 @@ export function Delegations({ me }: { me: Me }) {
             </strong>
             <div className="muted">
               {fmtTime(d.starts_at)} sampai {fmtTime(d.ends_at)}
+              {d.created_by && d.created_by !== d.from_user_id ? ` · dibuat oleh ${d.created_by_name}` : ''}
             </div>
           </div>
-          {d.from_user_id === me.id ? (
+          {d.from_user_id === me.id || d.created_by === me.id ? (
             <button className="link" onClick={() => api('DELETE', `/delegations/${d.id}`).then(reload)}>
               Cabut
             </button>
@@ -357,12 +362,25 @@ export function Delegations({ me }: { me: Me }) {
         </div>
       ))}
       <form className="card" onSubmit={submit}>
-        <h3>Delegasikan approval saya</h3>
+        <h3>Buat delegasi</h3>
+        {reports?.length ? (
+          <label>
+            <span>Approval milik</span>
+            <select value={from} onChange={(e) => setFrom(e.target.value)}>
+              <option value="">Saya sendiri</option>
+              {reports.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} (bawahan yang berhalangan)
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
         <label>
           <span>Kepada</span>
           <select value={to} onChange={(e) => setTo(e.target.value)} required>
             <option value="">Pilih</option>
-            {users?.filter((u) => u.id !== me.id).map((u) => (
+            {users?.filter((u) => u.id !== (from || me.id)).map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
               </option>

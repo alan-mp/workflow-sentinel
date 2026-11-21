@@ -171,6 +171,31 @@ describe('delegasi', () => {
     expect(await openTask('budi', r)).toBeUndefined();
     expect((await decide('budi', r)).body.code).toBe('SOD_VIOLATION');
   });
+
+  it('atasan langsung bisa mendelegasikan atas nama bawahan yang berhalangan; orang lain tidak', async () => {
+    const now = Date.now();
+    const body = { fromUserId: 'u_maya', toUserId: 'u_irfan', startsAt: new Date(now - 60_000).toISOString(), endsAt: new Date(now + 3_600_000).toISOString() };
+    expect((await t.call('budi', 'POST', '/delegations', body)).status).toBe(403);
+    expect((await t.call('hana', 'POST', '/delegations', body)).status).toBe(403);
+    const made = await t.call('putra', 'POST', '/delegations', body);
+    expect(made.status).toBe(201);
+
+    const notes = (await t.call('maya', 'GET', '/notifications')).body.map((n: any) => n.message).join('\n');
+    expect(notes).toMatch(/Putra.*mendelegasikan approval Anda ke Irfan/);
+    expect((await t.call('maya', 'GET', '/delegations')).body.find((d: any) => d.id === made.body.id)).toMatchObject({ created_by: 'u_putra' });
+
+    const r = (await t.call('hadi', 'POST', '/requests', { flowKey: 'leave', data: { leave_type: 'sakit', start_date: '2026-12-10', end_date: '2026-12-11', days: 1 } })).body.id;
+    // Atasan Hadi adalah Irfan sendiri, jadi pakai permintaan Budi untuk menguji delegasi Maya.
+    await decide('irfan', r);
+    const viaMaya = (await t.call('budi', 'POST', '/requests', purchase(1_000_000))).body.id;
+    expect(await openTask('irfan', viaMaya)).toMatchObject({ onBehalfOf: 'u_maya' });
+    await decide('irfan', viaMaya);
+    const audit = await t.env.DB.prepare("SELECT detail FROM audit_events WHERE request_id = ? AND action = 'task_approved'").bind(viaMaya).first<any>();
+    expect(JSON.parse(audit.detail)).toMatchObject({ onBehalfOf: 'u_maya', delegatedBy: 'u_putra' });
+
+    expect((await t.call('putra', 'DELETE', `/delegations/${made.body.id}`)).status).toBe(200);
+    expect((await t.call('maya', 'GET', '/delegations')).body.some((d: any) => d.id === made.body.id)).toBe(false);
+  });
 });
 
 describe('SLA', () => {
