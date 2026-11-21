@@ -1,4 +1,4 @@
-import { flattenSteps, type Condition, type FlowDefinition, type Step } from '@sentinel/engine';
+import { UNIT_LEVEL_LABEL, flattenSteps, type Condition, type FlowDefinition, type Step, type UnitLevel } from '@sentinel/engine/model';
 
 /** Menunjuk satu urutan langkah: akar alur, atau salah satu cabang sebuah blok. */
 export interface SeqRef {
@@ -75,6 +75,15 @@ export const removeStep = (def: FlowDefinition, id: string) =>
 
 const OPS: Record<string, string> = { eq: '=', neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤', in: 'salah satu dari' };
 
+/** Kondisi sebagai bagian terpisah (bidang, operator, nilai batas) untuk ditampilkan sebagai batas spesifikasi. */
+export function conditionParts(def: FlowDefinition, when: Condition[]): { label: string; op: string; value: string }[] {
+  return when.map((c) => ({
+    label: c.field === 'requester.department' ? 'Departemen pemohon' : (def.fields.find((f) => f.key === c.field)?.label ?? c.field),
+    op: OPS[c.op] ?? c.op,
+    value: Array.isArray(c.value) ? c.value.join(', ') : typeof c.value === 'number' ? c.value.toLocaleString('id-ID') : String(c.value),
+  }));
+}
+
 export function conditionText(def: FlowDefinition, when: Condition[]): string {
   if (when.length === 0) return 'selain itu';
   return when
@@ -86,12 +95,21 @@ export function conditionText(def: FlowDefinition, when: Condition[]): string {
     .join(' dan ');
 }
 
-export function approverText(a: { kind: string; level?: number; role?: string; userId?: string; tableId?: string }, def: FlowDefinition): string {
+/** Nama wewenang dari master organisasi; diisi editor setelah memuat versi alur. */
+let authorityNames: Record<string, string> = {};
+export const setAuthorityNames = (names: Record<string, string>) => {
+  authorityNames = names;
+};
+export const roleLabel = (role?: string) => (role ? (authorityNames[role] ?? role.replace(/_/g, ' ')) : '');
+
+export function approverText(a: { kind: string; level?: number | string; role?: string; userId?: string; tableId?: string }, def: FlowDefinition): string {
   switch (a.kind) {
     case 'manager':
       return a.level === 1 ? 'Atasan langsung' : `Atasan tingkat ${a.level}`;
     case 'role':
-      return `Peran: ${a.role}`;
+      return `Wewenang: ${roleLabel(a.role)}`;
+    case 'unit_head':
+      return `Kepala ${UNIT_LEVEL_LABEL[a.level as UnitLevel]?.toLowerCase() ?? a.level} pemohon`;
     case 'user':
       return `User: ${a.userId}`;
     case 'table':

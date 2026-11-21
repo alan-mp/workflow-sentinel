@@ -1,9 +1,9 @@
 import type { Edge, Node } from '@xyflow/react';
-import type { FlowDefinition, Step } from '@sentinel/engine';
+import type { FlowDefinition, Step } from '@sentinel/engine/model';
 import { conditionText, seqKey, type SeqRef } from './edit';
 
-const W = 210;
-const H = 62;
+const W = 224;
+const H = 72;
 const SLOT = 26;
 const GAP_Y = 18;
 const GAP_X = 28;

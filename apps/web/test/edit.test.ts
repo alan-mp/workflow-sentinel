@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { flattenSteps, validateDefinition, type FlowDefinition } from '@sentinel/engine';
+import { flattenSteps, validateDefinition, type FlowDefinition } from '@sentinel/engine/model';
 import { insertStep, newStep, removeStep, updateStep } from '../src/admin/edit';
 import { layout } from '../src/admin/layout';
 

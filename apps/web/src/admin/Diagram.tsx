@@ -1,7 +1,8 @@
-import { createContext, useContext, useMemo, useState } from 'react';
-import { Background, Controls, Handle, Position, ReactFlow, type NodeProps } from '@xyflow/react';
+import { createContext, useContext, useMemo, useRef, useState } from 'react';
+import { Background, Controls, Handle, Position, ReactFlow, getNodesBounds, type NodeProps } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { FlowDefinition, Step } from '@sentinel/engine';
+import type { FlowDefinition, Step } from '@sentinel/engine/model';
+import { Plus } from 'lucide-react';
 import { approverText, type SeqRef } from './edit';
 import { layout, type SlotData } from './layout';
 
@@ -38,7 +39,11 @@ function StepNode({ data }: NodeProps) {
   return (
     <div className={`node ${step.type} ${ctx.selected === step.id ? 'selected' : ''}`} onClick={() => ctx.onSelect(step.id)}>
       <Handles />
-      <div className="kind">{KIND[step.type]}</div>
+      <div className="kind">
+        <span className="kind-mark" aria-hidden="true" />
+        {KIND[step.type]}
+        {step.type === 'approval' && step.slaHours ? <span className="node-sla num">SLA {step.slaHours} j</span> : null}
+      </div>
       <div className="title">{step.name}</div>
       <div className="sub">{sub}</div>
     </div>
@@ -56,8 +61,8 @@ function SlotNode({ data }: NodeProps) {
       {ctx.readOnly ? (
         <div className="dot" />
       ) : (
-        <button className="add" title="Tambah langkah di sini" onClick={() => setOpen(!open)}>
-          +
+        <button className="add" title="Tambah langkah di sini" aria-label="Tambah langkah di sini" onClick={() => setOpen(!open)}>
+          <Plus size={14} />
         </button>
       )}
       {open ? (
@@ -97,8 +102,10 @@ const nodeTypes = { step: StepNode, slot: SlotNode, join: JoinNode, terminal: Te
 
 export function Diagram(props: Ctx) {
   const { nodes, edges } = useMemo(() => layout(props.def), [props.def]);
+  const wrap = useRef<HTMLDivElement>(null);
   return (
     <DiagramCtx.Provider value={props}>
+      <div ref={wrap} style={{ width: '100%', height: '100%' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -106,14 +113,25 @@ export function Diagram(props: Ctx) {
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        fitView
-        fitViewOptions={{ maxZoom: 1, padding: 0.1 }}
         minZoom={0.2}
+        panOnScroll
+        onInit={(rf) => {
+          // Alur panjang tidak dikecilkan sampai tak terbaca; pengguna menggulir atau memakai kontrol zoom.
+          const el = wrap.current;
+          if (!el || nodes.length === 0) return;
+          const b = getNodesBounds(nodes);
+          // Zoom bulat 1 menjaga teks tetap tajam; alur yang lebih tinggi dari kanvas dimulai dari atas.
+          const zoom = 1;
+          const x = el.clientWidth / 2 - (b.x + b.width / 2) * zoom;
+          const y = b.height * 1.1 <= el.clientHeight ? el.clientHeight / 2 - (b.y + b.height / 2) * zoom : 24 - b.y * zoom;
+          rf.setViewport({ x, y, zoom });
+        }}
         proOptions={{ hideAttribution: true }}
       >
         <Background />
         <Controls showInteractive={false} />
       </ReactFlow>
+      </div>
     </DiagramCtx.Provider>
   );
 }

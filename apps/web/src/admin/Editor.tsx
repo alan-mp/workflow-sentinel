@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { flattenSteps, validateDefinition, type FlowDefinition } from '@sentinel/engine';
-import { STATUS_LABEL, api, fmtTime } from '../api';
+import { flattenSteps, validateDefinition, type FlowDefinition } from '@sentinel/engine/model';
+import { ArrowLeft } from 'lucide-react';
+import { STATUS_LABEL, api, fmtDate } from '../api';
 import type { Me } from '../App';
+import { Badge, Loading, splitName } from '../ui';
 import { Diagram } from './Diagram';
 import { ChatPanel, SimPanel, StepPanel, TablesPanel } from './Panels';
-import { insertStep, newStep, removeStep, updateStep } from './edit';
+import { insertStep, newStep, removeStep, setAuthorityNames, updateStep } from './edit';
 
 type Tab = 'chat' | 'step' | 'tables' | 'sim' | 'issues';
 
@@ -17,9 +19,14 @@ export function Editor({ id, me }: { id: string; me: Me }) {
   const [tab, setTab] = useState<Tab>('chat');
   const [message, setMessage] = useState('');
   const [effective, setEffective] = useState(new Date().toISOString().slice(0, 10));
+  const [people, setPeople] = useState<Record<string, string>>({});
+  useEffect(() => {
+    api<any[]>('GET', '/admin/users').then((u) => setPeople(Object.fromEntries(u.map((x) => [x.id, splitName(x.name)[0]]))), () => {});
+  }, []);
 
   const load = async () => {
     const v = await api('GET', `/admin/versions/${id}`);
+    setAuthorityNames(v.roleNames ?? {});
     setVersion(v);
     setDef(v.definition);
     setSopUrl(v.sopUrl ?? '');
@@ -31,7 +38,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
 
   const issues = useMemo(() => (def ? validateDefinition(def).issues : []), [def]);
   const errors = issues.filter((i) => i.level === 'error');
-  if (!version || !def) return <p className="content error">{message}</p>;
+  if (!version || !def) return message ? <p className="error-note page">{message}</p> : <Loading />;
 
   const readOnly = version.status !== 'draft' || !version.canEdit;
   const change = (next: FlowDefinition) => {
@@ -57,25 +64,29 @@ export function Editor({ id, me }: { id: string; me: Me }) {
 
   return (
     <div className="editor">
-      <header className="topbar">
-        <a href="#/admin">← Alur</a>
-        <input className="flow-name" value={def.name} disabled={readOnly} onChange={(e) => change({ ...def, name: e.target.value })} />
-        <span className={`badge ${version.status}`}>
-          v{version.version} {STATUS_LABEL[version.status]}
-        </span>
+      <div className="editor-bar">
+        <a className="icon-btn" href="#/admin" aria-label="Kembali ke daftar alur" title="Daftar alur">
+          <ArrowLeft size={18} />
+        </a>
+        <input className="flow-name" value={def.name} disabled={readOnly} onChange={(e) => change({ ...def, name: e.target.value })} aria-label="Nama alur" />
+        <span className="num version-n">v{version.version}</span>
+        <Badge status={version.status} label={STATUS_LABEL[version.status]} />
         <span className="grow" />
         {readOnly ? (
-          <span className="muted">{version.status === 'draft' ? 'Hanya baca' : `Berlaku sejak ${fmtTime(version.effectiveFrom)}`}</span>
+          <span className="cell-sub">{version.status === 'draft' ? 'Hanya baca' : `Berlaku sejak ${fmtDate(version.effectiveFrom)}`}</span>
         ) : (
           <>
-            <button disabled={!dirty} onClick={() => run(save, 'Draf tersimpan.')}>
+            <button className="btn" disabled={!dirty} onClick={() => run(save, 'Draf tersimpan.')}>
               {dirty ? 'Simpan draf' : 'Tersimpan'}
             </button>
             {version.canActivate ? (
               <>
-                <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} title="Tanggal berlaku" />
+                <label className="inline-field">
+                  <span>Berlaku</span>
+                  <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} />
+                </label>
                 <button
-                  className="primary"
+                  className="btn primary"
                   disabled={dirty || errors.length > 0}
                   onClick={() => run(() => api('POST', `/admin/drafts/${id}/activate`, { effectiveFrom: new Date(`${effective}T00:00:00`).toISOString() }), 'Alur diaktifkan.')}
                 >
@@ -84,7 +95,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
               </>
             ) : (
               <button
-                className="primary"
+                className="btn primary"
                 disabled={errors.length > 0}
                 title="Anda ikut menyusun draf ini, jadi pengaktifan harus oleh pemilik proses lain"
                 onClick={() => run(async () => { await save(); await api('POST', `/admin/drafts/${id}/submit`); }, 'Diajukan ke pemilik proses lain untuk ditinjau.')}
@@ -94,7 +105,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
             )}
           </>
         )}
-      </header>
+      </div>
       {message ? <div className="notice">{message}</div> : null}
       <div className="editor-body">
         <div className="canvas">
@@ -148,15 +159,17 @@ export function Editor({ id, me }: { id: string; me: Me }) {
                 }}
               />
             ) : (
-              <p className="panel muted">Pilih langkah di diagram, atau tekan + untuk menambah.</p>
+              <div className="panel">
+                <p className="dim">Pilih langkah di diagram, atau tekan + di antara langkah untuk menambah.</p>
+              </div>
             )
           ) : null}
           {tab === 'tables' ? <TablesPanel def={def} roles={version.roles} citations={version.citations} readOnly={readOnly} onChange={change} /> : null}
           {tab === 'sim' ? <SimPanel def={def} /> : null}
           {tab === 'issues' ? (
             <div className="panel">
-              <label>
-                <span>Tautan SOP sumber</span>
+              <label className="field">
+                <span className="field-label">Tautan SOP sumber</span>
                 <input
                   value={sopUrl}
                   disabled={readOnly}
@@ -167,24 +180,27 @@ export function Editor({ id, me }: { id: string; me: Me }) {
                   }}
                 />
               </label>
-              {!sopUrl ? <p className="error">Tautan SOP wajib diisi sebelum alur bisa diaktifkan.</p> : null}
-              {issues.length === 0 ? <p className="ok">Definisi lolos pemeriksaan: tidak ada jalur tanpa approval, semua rujukan valid.</p> : null}
+              {!sopUrl ? <p className="check-row bad">Tautan SOP wajib diisi sebelum alur bisa diaktifkan.</p> : null}
+              {issues.length === 0 ? <p className="check-row ok">Definisi lolos pemeriksaan: tidak ada jalur tanpa approval, semua rujukan valid.</p> : null}
               {issues.map((i, n) => (
-                <p key={n} className={i.level === 'error' ? 'error' : 'muted'}>
+                <p key={n} className={`check-row ${i.level === 'error' ? 'bad' : 'warn'}`}>
                   {i.message}
                 </p>
               ))}
-              <p className="muted small">
-                Disusun oleh: {version.editedBy.join(', ')}. {version.canActivate ? 'Anda bisa mengaktifkan draf ini.' : readOnly ? '' : `Anda (${me.id}) ikut menyusun, jadi pengaktifan harus oleh pemilik proses lain di alur ini.`}
+              <p className="dim small">
+                Disusun oleh: {version.editedBy.map((uid: string) => people[uid] ?? uid).join(', ')}. {version.canActivate ? 'Anda bisa mengaktifkan draf ini.' : readOnly ? '' : 'Anda ikut menyusun, jadi pengaktifan harus oleh pemilik proses lain di alur ini.'}
               </p>
               <h4>Bidang isian permintaan</h4>
-              <ul className="small">
+              <dl className="spec">
                 {def.fields.map((f) => (
-                  <li key={f.key}>
-                    {f.label} <span className="muted">({f.key}, {f.type})</span>
-                  </li>
+                  <div key={f.key}>
+                    <dt>{f.label}</dt>
+                    <dd className="num">
+                      {f.key} · {f.type}
+                    </dd>
+                  </div>
                 ))}
-              </ul>
+              </dl>
             </div>
           ) : null}
         </aside>

@@ -1,0 +1,407 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-21T00:00:00Z",
+  "title": "Design System: Sentinel · Mitra Prodin",
+  "extensions": {
+    "colorMeta": {
+      "prodin-blue": {
+        "role": "primary",
+        "displayName": "Biru Mitra Prodin",
+        "canonical": "oklch(43.7% 0.114 247)",
+        "tonalRamp": [
+          "#001327",
+          "#002b4e",
+          "#004579",
+          "#1f67a0",
+          "#468cc7",
+          "#72b1e9",
+          "#acd6fd",
+          "#d8f2ff"
+        ]
+      },
+      "pen-red": {
+        "role": "secondary",
+        "displayName": "Merah Pena",
+        "canonical": "oklch(51.2% 0.208 26)",
+        "tonalRamp": [
+          "#300000",
+          "#5e0000",
+          "#910000",
+          "#be0012",
+          "#e93e3b",
+          "#ff7167",
+          "#ffb0a4",
+          "#ffdbd2"
+        ]
+      },
+      "test-green": {
+        "role": "secondary",
+        "displayName": "Hijau Uji",
+        "canonical": "oklch(53.0% 0.116 156)",
+        "tonalRamp": [
+          "#001807",
+          "#003417",
+          "#005328",
+          "#0e7647",
+          "#409b69",
+          "#6fbf8f",
+          "#acdfbe",
+          "#d8f8e3"
+        ]
+      },
+      "amber": {
+        "role": "secondary",
+        "displayName": "Amber",
+        "canonical": "oklch(55.1% 0.125 64)",
+        "tonalRamp": [
+          "#220a00",
+          "#451b00",
+          "#6c2f00",
+          "#935000",
+          "#b97426",
+          "#dd9b59",
+          "#f5c79d",
+          "#ffe9ce"
+        ]
+      },
+      "amber-bar": {
+        "role": "secondary",
+        "displayName": "Amber Batang",
+        "canonical": "oklch(69.9% 0.152 70)",
+        "tonalRamp": [
+          "#240900",
+          "#481900",
+          "#712b00",
+          "#984d00",
+          "#bf7200",
+          "#e29938",
+          "#f9c78e",
+          "#ffe8c5"
+        ]
+      },
+      "slate-ink": {
+        "role": "neutral",
+        "displayName": "Tinta Slate",
+        "canonical": "oklch(36.1% 0.022 241)",
+        "tonalRamp": [
+          "#0e1216",
+          "#222a30",
+          "#38444d",
+          "#58656f",
+          "#7b8893",
+          "#a0adb7",
+          "#c9d2d9",
+          "#eaeff4"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Latar",
+        "canonical": "oklch(95.9% 0.006 240)",
+        "tonalRamp": [
+          "#111213",
+          "#27292b",
+          "#404345",
+          "#606466",
+          "#838789",
+          "#a8abae",
+          "#cfd1d3",
+          "#edeff0"
+        ]
+      },
+      "prodin-blue-ink": {
+        "role": "primary",
+        "displayName": "Biru Tinta"
+      },
+      "blue-wash": {
+        "role": "primary",
+        "displayName": "Biru Basuh"
+      },
+      "blue-line": {
+        "role": "primary",
+        "displayName": "Garis Biru"
+      },
+      "red-wash": {
+        "role": "secondary",
+        "displayName": "Basuhan Merah"
+      },
+      "green-wash": {
+        "role": "secondary",
+        "displayName": "Basuhan Hijau"
+      },
+      "amber-wash": {
+        "role": "secondary",
+        "displayName": "Basuhan Amber"
+      },
+      "ink-strong": {
+        "role": "neutral",
+        "displayName": "Tinta Tegas"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Redup"
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Pudar"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Garis"
+      },
+      "line-soft": {
+        "role": "neutral",
+        "displayName": "Garis Lembut"
+      },
+      "control-line": {
+        "role": "neutral",
+        "displayName": "Garis Kontrol"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Permukaan"
+      },
+      "surface-sunk": {
+        "role": "neutral",
+        "displayName": "Permukaan Turun"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Nama aplikasi di panel brand login saja."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Judul halaman (h1)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Judul sheet dan alur (h2)."
+      },
+      "subtitle": {
+        "displayName": "Subtitle",
+        "purpose": "Judul bagian di detail (h3)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Teks UI dasar, tabular-nums."
+      },
+      "table": {
+        "displayName": "Table",
+        "purpose": "Satu ukuran untuk semua sel tabel."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Label isian kecil kapital di atas nilai; kepala tabel 0.72rem/0.06em."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "IBM Plex Mono hanya untuk nomor, waktu, nominal, hitungan."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shadow-layer",
+        "value": "0 8px 24px rgb(29 37 44 / 0.14), 0 2px 6px rgb(29 37 44 / 0.08)",
+        "purpose": "Hanya untuk lapisan mengambang: menu, drawer, dialog."
+      },
+      {
+        "name": "active-underline",
+        "value": "inset 0 -2px 0 #00558c",
+        "purpose": "Segmen gauge dan tab panel terpilih; inset 0 2px 0 untuk tab bar HP."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 3px rgb(0 85 140 / 0.18)",
+        "purpose": "Fokus input, bersama bingkai biru."
+      },
+      {
+        "name": "node-selected",
+        "value": "0 0 0 2px #00558c",
+        "purpose": "Node diagram terpilih."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control",
+        "value": "120ms ease-out",
+        "purpose": "Latar, bingkai, dan halo pada tombol, input, pencarian header."
+      },
+      {
+        "name": "row",
+        "value": "80ms ease-out",
+        "purpose": "Hover baris tabel."
+      },
+      {
+        "name": "node",
+        "value": "100ms ease-out",
+        "purpose": "Bingkai node diagram."
+      },
+      {
+        "name": "press",
+        "value": "translateY(1px)",
+        "purpose": "Tombol saat ditekan."
+      },
+      {
+        "name": "spinner",
+        "value": "700ms linear infinite",
+        "purpose": "Pemuatan."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "transition 0ms, animation 1ms",
+        "purpose": "prefers-reduced-motion: reduce mematikan semua gerak."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "detail-narrow",
+        "value": "1240px"
+      },
+      {
+        "name": "split-stack",
+        "value": "1080px"
+      },
+      {
+        "name": "mobile",
+        "value": "820px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Aksi utama: Setujui, Simpan, Masuk.",
+      "html": "<button class=\"ds-btn ds-btn-primary\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg>Setujui</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;gap:.4rem;min-height:34px;padding:.35rem .85rem;border:1px solid #c3ccd3;border-radius:4px;background:#fff;color:#1d252c;font:550 14px 'Public Sans Variable','Public Sans',system-ui,sans-serif;cursor:pointer;transition:background 120ms ease-out,border-color 120ms ease-out}.ds-btn:active{transform:translateY(1px)}.ds-btn:focus-visible{outline:2px solid #00558c;outline-offset:2px}.ds-btn-primary{background:#00558c;border-color:#00558c;color:#fff;min-width:8.5rem;justify-content:center}.ds-btn-primary:hover{background:#00426d;border-color:#00426d}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Aksi sekunder: Minta revisi, Tambah.",
+      "html": "<button class=\"ds-btn2\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5\"/></svg>Minta revisi</button>",
+      "css": ".ds-btn2{display:inline-flex;align-items:center;gap:.4rem;min-height:34px;padding:.35rem .85rem;border:1px solid #c3ccd3;border-radius:4px;background:#fff;color:#1d252c;font:550 14px 'Public Sans Variable','Public Sans',system-ui,sans-serif;cursor:pointer;transition:background 120ms ease-out,border-color 120ms ease-out}.ds-btn2:hover{background:#f6f8f9;border-color:#aab5be}.ds-btn2:active{transform:translateY(1px)}.ds-btn2:focus-visible{outline:2px solid #00558c;outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Aksi berbahaya: Tolak.",
+      "html": "<button class=\"ds-btn-danger\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M18 6 6 18M6 6l12 12\"/></svg>Tolak</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;gap:.4rem;min-height:34px;padding:.35rem .85rem;border:1px solid #e3a3ab;border-radius:4px;background:#fff;color:#c20017;font:550 14px 'Public Sans Variable','Public Sans',system-ui,sans-serif;cursor:pointer;transition:background 120ms ease-out,border-color 120ms ease-out}.ds-btn-danger:hover{background:#fbe9eb;border-color:#c20017}.ds-btn-danger:focus-visible{outline:2px solid #00558c;outline-offset:2px}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Label kecil kapital di atas nilai; tanggal delegasi dengan konfirmasi 'Terbaca sebagai'.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Mulai</span><input class=\"ds-input\" type=\"datetime-local\" value=\"2026-12-22T08:00\"><span class=\"ds-hint\">Terbaca sebagai Senin, 22 Des 2026 08.00</span></label>",
+      "css": ".ds-field{display:grid;gap:.3rem;max-width:280px;font:14px/1.45 'Public Sans Variable','Public Sans',system-ui,sans-serif;color:#333f48}.ds-field-label{font-size:.75rem;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:#5b6770}.ds-input{min-height:34px;padding:.4rem .6rem;border:1px solid #d4dde4;border-radius:4px;background:#fff;color:#1d252c;font:inherit;transition:border-color 120ms ease-out,box-shadow 120ms ease-out}.ds-input:hover{border-color:#b7c1c9}.ds-input:focus-visible{outline:none;border-color:#00558c;box-shadow:0 0 0 3px rgb(0 85 140 / .18)}.ds-hint{font-size:.8rem;color:#5b6770}"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item-active",
+      "description": "Item sidebar dengan hitungan mono; aktif biru basuh.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item on\" href=\"#\"><span>Kotak masuk</span><span class=\"ds-count\">6</span></a><a class=\"ds-nav-item\" href=\"#\"><span>Permintaan saya</span></a><a class=\"ds-nav-item\" href=\"#\"><span>Notifikasi</span><span class=\"ds-count\">9</span></a><p class=\"ds-nav-heading\">Pengelolaan</p><a class=\"ds-nav-item\" href=\"#\"><span>Alur approval</span></a></nav>",
+      "css": ".ds-nav{display:grid;gap:2px;width:224px;padding:.9rem .6rem;background:#fff;font:14px 'Public Sans Variable','Public Sans',system-ui,sans-serif}.ds-nav-item{display:flex;justify-content:space-between;align-items:center;padding:.5rem .6rem;border-radius:4px;color:#333f48;font-weight:520;text-decoration:none}.ds-nav-item:hover{background:#f6f8f9}.ds-nav-item:focus-visible{outline:2px solid #00558c;outline-offset:2px}.ds-nav-item.on{background:#e5eff6;color:#00426d;font-weight:650}.ds-count{min-width:1.5rem;padding:0 .4rem;border-radius:3px;background:#e5ebef;color:#1d252c;font:500 .78rem/1.5 'IBM Plex Mono',ui-monospace,monospace;text-align:center}.ds-nav-item.on .ds-count{background:#00558c;color:#fff}.ds-nav-heading{margin:1rem 0 0;padding:0 .6rem .35rem;font-size:.72rem;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:#5b6770}"
+    },
+    {
+      "name": "Status Badges",
+      "kind": "chip",
+      "refersTo": "badge-ok",
+      "description": "Teks status di atas basuhannya dengan penanda kotak persegi.",
+      "html": "<div class=\"ds-badges\"><span class=\"ds-badge ok\">Disetujui</span><span class=\"ds-badge warn\">Diminta revisi</span><span class=\"ds-badge bad\">Ditolak</span><span class=\"ds-badge run\">Diproses</span><span class=\"ds-badge\">Dibatalkan</span></div>",
+      "css": ".ds-badges{display:flex;gap:.5rem;flex-wrap:wrap;font-family:'Public Sans Variable','Public Sans',system-ui,sans-serif}.ds-badge{display:inline-flex;align-items:center;gap:.38rem;padding:.1rem .45rem;border-radius:3px;font-size:.78rem;font-weight:650;background:#e5ebef;color:#5b6770}.ds-badge::before{content:'';width:7px;height:7px;border-radius:1px;background:currentColor}.ds-badge.ok{background:#e5f2ea;color:#1e7f4f}.ds-badge.warn{background:#fcf0dc;color:#a35f00}.ds-badge.bad{background:#fbe9eb;color:#c20017}.ds-badge.run{background:#e5eff6;color:#00426d}"
+    },
+    {
+      "name": "Pita Toleransi SLA",
+      "kind": "custom",
+      "refersTo": "tolerance-band",
+      "description": "Signature: batas 70%, tanda 75% pada 52.5%, lewat batas over/(over+1) dari 30%.",
+      "html": "<div class=\"ds-tols\"><span class=\"ds-tol ok\"><span class=\"ds-track\"><span class=\"ds-zone\"></span><span class=\"ds-fill\" style=\"width:14%\"></span><span class=\"ds-warn\"></span><span class=\"ds-limit\"></span></span><span class=\"ds-text\">sisa 41 j 44 mnt</span></span><span class=\"ds-tol near\"><span class=\"ds-track\"><span class=\"ds-zone\"></span><span class=\"ds-fill\" style=\"width:59%\"></span><span class=\"ds-warn\"></span><span class=\"ds-limit\"></span></span><span class=\"ds-text\">sisa 3 j 44 mnt</span></span><span class=\"ds-tol out\"><span class=\"ds-track\"><span class=\"ds-zone\"></span><span class=\"ds-fill\" style=\"width:70%\"></span><span class=\"ds-over\" style=\"width:10%\"></span><span class=\"ds-warn\"></span><span class=\"ds-limit\"></span></span><span class=\"ds-text\">lewat 20 j 16 mnt</span></span></div>",
+      "css": ".ds-tols{display:grid;gap:14px;width:200px}.ds-tol{display:grid;gap:4px}.ds-track{position:relative;height:6px;border-radius:1px;background:#e5ebef}.ds-zone{position:absolute;top:0;bottom:0;left:70%;right:0;background:repeating-linear-gradient(135deg,transparent 0 3px,#e1c3c8 3px 4px)}.ds-fill{position:absolute;inset:0 auto 0 0;border-radius:1px 0 0 1px;background:#1e7f4f}.near .ds-fill{background:#d98a00}.out .ds-fill{background:#e3a0a9}.ds-over{position:absolute;top:-1px;bottom:-1px;left:70%;background:#c20017;border-radius:0 1px 1px 0}.ds-warn{position:absolute;top:0;bottom:0;left:52.5%;width:1px;background:#b8c3cc}.ds-limit{position:absolute;top:-3px;bottom:-3px;left:70%;width:2px;margin-left:-1px;background:#1d252c}.ds-text{font:500 13px/1.2 'IBM Plex Mono',ui-monospace,monospace;color:#5b6770}.near .ds-text{color:#a35f00}.out .ds-text{color:#c20017;font-weight:600}"
+    },
+    {
+      "name": "Chip Ambang Aturan",
+      "kind": "chip",
+      "refersTo": "limit-chip",
+      "description": "Ambang aturan sebagai batas spesifikasi, garis batas yang sama dengan pita.",
+      "html": "<span class=\"ds-limits\"><span class=\"ds-limit-v\"><span class=\"ds-op\">&gt;</span> 5.000.000</span><span class=\"ds-and\">dan</span><span class=\"ds-limit-v\"><span class=\"ds-op\">&le;</span> 50.000.000</span></span>",
+      "css": ".ds-limits{display:inline-flex;gap:.5rem;align-items:baseline;font:14px 'Public Sans Variable','Public Sans',system-ui,sans-serif}.ds-limit-v{position:relative;padding:.05rem .45rem .05rem .6rem;border-radius:2px;background:#f6f8f9;color:#1d252c;font:600 13px 'IBM Plex Mono',ui-monospace,monospace}.ds-limit-v::before{content:'';position:absolute;left:0;top:-2px;bottom:-2px;width:2px;background:#1d252c}.ds-op{color:#5b6770;font:500 .93rem 'Public Sans Variable','Public Sans',system-ui,sans-serif}.ds-and{color:#5b6770}"
+    },
+    {
+      "name": "Sheet + Table",
+      "kind": "card",
+      "refersTo": "table-header",
+      "description": "Tabel bergaris rambut, kepala kapital kecil, satu ukuran huruf.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-table\"><thead><tr><th>Nomor</th><th>Alur dan langkah</th></tr></thead><tbody><tr class=\"sel\"><td><span class=\"ds-id\">REQ-670A2E35</span></td><td><div class=\"ds-main\">Cuti / Izin</div><div class=\"ds-sub\">Atasan langsung</div></td></tr><tr><td><span class=\"ds-id\">REQ-4020B510</span></td><td><div class=\"ds-main\">Permintaan Pembelian</div><div class=\"ds-sub\">Keuangan</div></td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap{border:1px solid #d4dde4;border-radius:4px;background:#fff;overflow:hidden}.ds-table{width:100%;border-collapse:collapse;font:13px/1.45 'Public Sans Variable','Public Sans',system-ui,sans-serif;color:#333f48}.ds-table th{padding:.55rem .75rem;background:#f6f8f9;border-bottom:1px solid #d4dde4;text-align:left;font-size:10px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:#5b6770}.ds-table td{padding:.55rem .75rem;border-bottom:1px solid #e5ebef}.ds-table tbody tr{cursor:pointer;transition:background 80ms ease-out}.ds-table tbody tr:hover{background:#f6f8f9}.ds-table tr.sel{background:#e5eff6}.ds-id{font:500 12px 'IBM Plex Mono',ui-monospace,monospace;color:#00426d}.ds-main{font-weight:600;color:#1d252c}.ds-sub{color:#5b6770}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Lembar Uji QC",
+    "overview": "Sentinel membaca setiap tenggat dan setiap ambang aturan seperti hasil uji terhadap spesifikasi: di dalam toleransi, mendekati batas, atau di luar. Dunia visualnya adalah lembar uji pabrik yang rapi: bidang kerja putih bergaris rambut di atas latar abu-biru sangat muda, label kolom kecil berhuruf kapital seperti kolom isian formulir, dan angka ukur dalam monospace tabular. Identitas Mitra Prodin hadir lewat header biru dengan logo putih resmi (`public/brand/mp-logo-white-768.png`, tidak pernah digambar ulang).\n\nKepadatannya tinggi dan sengaja: 14px sebagai ukuran dasar, tabel satu ukuran huruf (≈13px), peringkat dibangun dengan ketebalan, kapital kecil, dan garis, bukan dengan ukuran atau warna. Semua netral diturunkan dari slate brand, sehingga warna hanya muncul ketika ia berarti sesuatu: hijau lulus, amber mendekati batas, merah pena di luar spesifikasi, biru untuk yang aktif atau terpilih dan untuk aksi utama. Dunia ini menolak dasbor SaaS abu-abu yang tersusun dari kartu-kartu dengan satu aksen.\n\nDatar secara default. Kedalaman dibangun oleh garis rambut dan pergeseran nada permukaan (latar → putih → sunk); bayangan hanya untuk lapisan yang benar-benar mengambang.",
+    "keyCharacteristics": [
+      "Header biru Mitra Prodin, sidebar putih, bidang kerja putih di atas latar `ground`.",
+      "Warna hanya untuk status dan tindakan; netral semuanya slate.",
+      "Public Sans untuk UI, IBM Plex Mono hanya untuk data (nomor, nominal, waktu, hitungan).",
+      "Label kecil kapital di atas nilai, seperti kolom isian lembar uji.",
+      "Pita toleransi SLA sebagai tanda tangan: batang tipis dengan garis batas, bukan progress bar.",
+      "Sudut nyaris tegas (4px); penanda status persegi, bukan titik bulat."
+    ],
+    "rules": [
+      {
+        "name": "The Color Means Status Rule",
+        "body": "Warna hanya muncul untuk status (hijau/amber/merah) dan untuk tindakan atau state aktif (biru). Dekorasi dan ilustrasi tetap slate. Satu pengecualian yang sudah ada: penanda jenis node diagram meminjam palet yang sama (biru, amber-bar, hijau), tidak pernah hue baru.",
+        "section": "colors"
+      },
+      {
+        "name": "The Wash Pairing Rule",
+        "body": "Penanda status selalu teks berwarna di atas basuhan warna yang sama (`*-wash`), tidak pernah teks putih di atas warna jenuh, kecuali tombol utama dan hitungan nav aktif.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mono Is Measurement Rule",
+        "body": "IBM Plex Mono hanya untuk nilai yang diukur atau dirujuk (nomor, nominal, waktu, hitungan). Judul, label, dan kalimat tetap Public Sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Size Table Rule",
+        "body": "Di dalam tabel, peringkat dibuat lewat ketebalan (600 untuk isi utama), warna redup untuk sub-baris, dan garis; ukuran huruf tidak berubah.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Permukaan kerja tidak pernah diberi bayangan. Bayangan berarti \"mengambang di atas lembar\", sehingga hanya menu, drawer, dan dialog yang boleh memakainya.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Square Mark Rule",
+        "body": "Penanda status dan jenis berbentuk persegi kecil dengan radius 1px, seperti kotak centang pada lembar uji.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "**Do** gunakan warna hanya untuk status (hijau uji, amber, merah pena) dan untuk aksi utama atau state aktif (biru Mitra Prodin).",
+      "**Do** tampilkan setiap tenggat dengan pita toleransi lengkap: garis batas 70%, tanda 75% pada 52.5%, zona arsir, dan segmen lewat batas terkompresi.",
+      "**Do** tulis nomor, waktu, nominal, dan hitungan dalam IBM Plex Mono; semua yang lain dalam Public Sans.",
+      "**Do** beri label isian berupa label kecil kapital (0.75rem, 650, 0.05em) di atas nilai.",
+      "**Do** bangun peringkat di tabel lewat ketebalan dan warna redup, dengan satu ukuran huruf.",
+      "**Do** pakai logo putih resmi dari `public/brand/` di atas biru; jangan gambar ulang.",
+      "**Do** pasangkan teks status dengan basuhan warnanya sendiri dan penanda kotak persegi."
+    ],
+    "donts": [
+      "**Don't** buat dasbor SaaS abu-abu yang tersusun dari kartu-kartu dengan satu aksen.",
+      "**Don't** beri bayangan pada sheet, tabel, panel, atau baris; bayangan hanya untuk menu, drawer, dan dialog.",
+      "**Don't** perkenalkan hue di luar slate, biru, hijau, amber, dan merah, termasuk untuk membedakan jenis.",
+      "**Don't** gunakan monospace untuk judul, label, atau kalimat.",
+      "**Don't** ganti pita toleransi dengan progress bar persentase.",
+      "**Don't** perbesar radius melewati 4px pada wadah atau tombol."
+    ]
+  }
+}

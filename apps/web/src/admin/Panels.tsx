@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { BUILTIN_FIELDS, type Condition, type FlowDefinition, type Step } from '@sentinel/engine';
+import { BUILTIN_FIELDS, UNIT_LEVELS, UNIT_LEVEL_LABEL, type Condition, type FlowDefinition, type Step } from '@sentinel/engine/model';
 import { api } from '../api';
 import { DynamicForm } from '../pages';
-import { conditionText, uniqueId } from './edit';
+import { X } from 'lucide-react';
+import { conditionParts, roleLabel, uniqueId } from './edit';
 
-type AnyApprover = { kind: string; level?: number; role?: string; userId?: string; tableId?: string };
+type AnyApprover = { kind: string; level?: number | string; role?: string; userId?: string; tableId?: string };
 
 export function ApproverEditor(props: {
   value: AnyApprover;
@@ -17,6 +18,7 @@ export function ApproverEditor(props: {
   const { value, onChange, def, roles, extra = [] } = props;
   const pick = (kind: string) => {
     if (kind === 'manager') onChange({ kind, level: 1 });
+    else if (kind === 'unit_head') onChange({ kind, level: 'departemen' });
     else if (kind === 'role') onChange({ kind, role: roles[0] ?? '' });
     else if (kind === 'user') onChange({ kind, userId: '' });
     else if (kind === 'table') onChange({ kind, tableId: def.tables[0]?.id ?? '' });
@@ -25,8 +27,13 @@ export function ApproverEditor(props: {
   return (
     <div className="inline">
       <select value={value.kind} onChange={(e) => pick(e.target.value)} disabled={props.disabled}>
-        <option value="manager">Atasan pemohon</option>
-        <option value="role">Peran</option>
+        <optgroup label="Sesuai struktur">
+          <option value="manager">Atasan pemohon</option>
+          <option value="unit_head">Kepala unit pemohon</option>
+        </optgroup>
+        <optgroup label="Sesuai wewenang">
+          <option value="role">Pemegang wewenang</option>
+        </optgroup>
         <option value="user">User tertentu</option>
         {extra.includes('table') ? <option value="table">Tabel aturan</option> : null}
         {extra.includes('requester') ? <option value="requester">Pemohon</option> : null}
@@ -36,20 +43,28 @@ export function ApproverEditor(props: {
         <select value={value.level} onChange={(e) => onChange({ kind: 'manager', level: Number(e.target.value) })} disabled={props.disabled}>
           {[1, 2, 3, 4, 5].map((n) => (
             <option key={n} value={n}>
-              tingkat {n}
+              {n === 1 ? 'atasan langsung' : `${n} tingkat di atas`}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      {value.kind === 'unit_head' ? (
+        <select value={value.level} onChange={(e) => onChange({ kind: 'unit_head', level: e.target.value })} disabled={props.disabled}>
+          {UNIT_LEVELS.map((l) => (
+            <option key={l} value={l}>
+              tingkat {UNIT_LEVEL_LABEL[l].toLowerCase()}
             </option>
           ))}
         </select>
       ) : null}
       {value.kind === 'role' ? (
-        <>
-          <input list="roles" value={value.role} onChange={(e) => onChange({ kind: 'role', role: e.target.value })} disabled={props.disabled} />
-          <datalist id="roles">
-            {roles.map((r) => (
-              <option key={r} value={r} />
-            ))}
-          </datalist>
-        </>
+        <select value={value.role} onChange={(e) => onChange({ kind: 'role', role: e.target.value })} disabled={props.disabled}>
+          {[...new Set([...(value.role ? [value.role] : []), ...roles])].map((r) => (
+            <option key={r} value={r}>
+              {roleLabel(r)}
+            </option>
+          ))}
+        </select>
       ) : null}
       {value.kind === 'user' ? (
         <input placeholder="ID user" value={value.userId} onChange={(e) => onChange({ kind: 'user', userId: e.target.value })} disabled={props.disabled} />
@@ -113,8 +128,8 @@ export function ConditionsEditor(props: { value: Condition[]; onChange: (v: Cond
             disabled={props.disabled}
           />
           {props.disabled ? null : (
-            <button className="link" onClick={() => onChange(value.filter((_, j) => j !== i))}>
-              ×
+            <button className="icon-btn" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label="Hapus kondisi" title="Hapus kondisi">
+              <X size={16} />
             </button>
           )}
         </div>
@@ -264,8 +279,24 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
             <p className="muted small">Baris pertama yang cocok dipakai. Baris terakhir harus tanpa kondisi (default).</p>
             {table.rows.map((row, ri) => (
               <div key={row.id} className="rule-row">
-                <div className="muted small">
-                  {ri + 1}. Jika {conditionText(def, row.when)}
+                <div className="rule-when">
+                  <span className="rule-n num">{ri + 1}</span>
+                  {row.when.length ? (
+                    <span className="limits">
+                      Jika
+                      {conditionParts(def, row.when).map((part, k) => (
+                        <span key={k} className="limit">
+                          {k > 0 ? <span className="limit-and">dan</span> : null}
+                          {part.label}
+                          <span className="limit-value num">
+                            <span className="limit-op">{part.op}</span> {part.value}
+                          </span>
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    'Selain itu (default)'
+                  )}
                 </div>
                 <ConditionsEditor value={row.when} def={def} disabled={readOnly} onChange={(when) => setRows(table.rows.map((r, j) => (j === ri ? { ...r, when } : r)))} />
                 <ApproverEditor
@@ -369,7 +400,7 @@ export function SimPanel({ def }: { def: FlowDefinition }) {
       {result ? (
         <ol className="sim">
           {result.steps.map((s: any) => (
-            <li key={s.stepId} className={s.error ? 'error' : s.skipped ? 'muted' : ''}>
+            <li key={s.stepId} className={s.error ? 'bad' : s.skipped ? 'skipped' : 'ok'}>
               <strong>{s.name}</strong>
               {s.type === 'notify' ? ' (notifikasi)' : ''}:{' '}
               {s.error ?? (s.skipped ? 'tidak diperlukan' : s.userIds.map((id: string) => result.names[id] ?? id).join(' atau '))}
