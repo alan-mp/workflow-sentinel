@@ -13,7 +13,9 @@
     "build": "vite build apps/web",
     "db:setup": "cd apps/api && wrangler d1 migrations apply sentinel --local && tsx scripts/seed.ts > .seed.sql && wrangler d1 execute sentinel --local --file .seed.sql",
     "dev": "npm run build && cd apps/api && wrangler dev",
-    "deploy": "npm run build && cd apps/api && wrangler deploy"
+    "deploy": "npm run build && cd apps/api && wrangler deploy",
+    "deploy:test": "npm run build && cd apps/api && wrangler deploy --env test",
+    "db:setup:test": "cd apps/api && wrangler d1 migrations apply sentinel-test --env test --remote && tsx scripts/seed.ts > .seed.sql && wrangler d1 execute sentinel-test --env test --remote --file .seed.sql"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
