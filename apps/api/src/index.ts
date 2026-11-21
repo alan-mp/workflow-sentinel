@@ -7,7 +7,8 @@ import { ChangeError, orgRoutes, ownsOrg } from './org';
 import type { AppEnv, Deps, SessionUser } from './env';
 import { integrationAdminRoutes, integrationApiRoutes } from './integrations';
 import { requestRoutes } from './requests';
-import { randomToken, verifyPassword } from './security';
+import { logError } from './log';
+import { TOO_MANY_LOGINS, loginAllowed, randomToken, verifyPassword } from './security';
 import { ConflictError } from './store';
 
 const SESSION_HOURS = 12;
@@ -67,12 +68,13 @@ export function createApp(overrides: Partial<Deps> = {}) {
     if (e instanceof EngineError) return c.json({ error: e.message, code: e.code }, STATUS[e.code] ?? 400);
     if (e instanceof ConflictError) return c.json({ error: e.message }, 409);
     if (e instanceof ChangeError) return c.json({ error: e.message }, 400);
-    console.error(e);
+    logError('unhandled error', e, { method: c.req.method, path: c.req.path });
     return c.json({ error: 'Something went wrong on the server' }, 500);
   });
 
   app.post('/login', async (c) => {
     const { email, password } = await c.req.json<{ email: string; password: string }>();
+    if (!(await loginAllowed(c.env.LOGIN_LIMITER, String(email ?? '')))) return c.json({ error: TOO_MANY_LOGINS }, 429);
     const userId = await verifyLogin(c.env.DB, String(email ?? ''), String(password ?? ''));
     if (!userId) return c.json({ error: 'Incorrect email or password' }, 401);
     const row = { id: userId };

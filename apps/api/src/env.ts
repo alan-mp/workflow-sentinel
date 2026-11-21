@@ -1,19 +1,15 @@
 import type { ErpAdapter, EmailNotifier } from './adapters';
 import type { AiDrafter } from './ai';
 
-export interface Env {
-  DB: D1Database;
-  FILES: R2Bucket;
-  /** AI binding; with AI_GATEWAY_ID it reaches Claude through AI Gateway without any key. */
-  AI?: Ai;
-  /** Name of the AI Gateway to route through, for example "internal-apps". */
-  AI_GATEWAY_ID?: string;
-  /** https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/anthropic */
-  AI_GATEWAY_URL?: string;
+/**
+ * Bindings and vars are generated from wrangler.jsonc into worker-configuration.d.ts (`npm run types`).
+ * Only what Wrangler cannot see is declared here: secrets and the helpers OAuthProvider injects.
+ */
+export interface Env extends Cloudflare.Env {
+  /** Secret, only for the gateway-URL alternative: authenticates to an authenticated AI Gateway. */
   AI_GATEWAY_TOKEN?: string;
+  /** Secret, only for the gateway-URL alternative (AI_GATEWAY_URL). */
   ANTHROPIC_API_KEY?: string;
-  /** Penyimpanan klien, grant, dan token OAuth untuk server MCP. */
-  OAUTH_KV?: KVNamespace;
   /** Disisipkan OAuthProvider di setiap permintaan. */
   OAUTH_PROVIDER?: import('@cloudflare/workers-oauth-provider').OAuthHelpers;
 }

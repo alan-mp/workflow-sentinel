@@ -1,4 +1,5 @@
 import type { RequestState } from '@sentinel/engine';
+import { logInfo } from './log';
 
 /**
  * Batas ke ERP. Alur approval hanya mengenal interface ini, jadi ERP bisa
@@ -21,9 +22,9 @@ export interface EmailNotifier {
   send(message: { to: string; subject: string; body: string }): Promise<void>;
 }
 
-/** Pengganti email untuk PoC: hanya mencatat ke log Worker. */
+/** Pengganti email untuk PoC: hanya mencatat ke log Worker, tanpa alamat penerima (data pribadi). */
 export class LogEmailNotifier implements EmailNotifier {
   async send(message: { to: string; subject: string; body: string }) {
-    console.log(`[email] to ${message.to}: ${message.subject}`);
+    logInfo('email not sent (log-only notifier)', { subject: message.subject });
   }
 }

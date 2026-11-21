@@ -11,6 +11,7 @@ import {
 } from '@sentinel/engine';
 import { drafterFromEnv } from './ai';
 import type { AppEnv, Deps, SessionUser } from './env';
+import { logError } from './log';
 import { rerouteAll } from './org';
 import { hashPassword, randomToken } from './security';
 import { auditStatement, getVersion, loadOrg, notificationStatement, rowToVersion, type Citation, type StoredVersion } from './store';
@@ -272,7 +273,7 @@ export function adminRoutes(deps: Deps) {
         message,
       });
     } catch (e) {
-      console.error('AI drafter failed', e);
+      logError('AI drafter failed', e, { flowVersionId: draft.id });
       return c.json({ error: 'The AI service is having problems. Try again.' }, 502);
     }
 

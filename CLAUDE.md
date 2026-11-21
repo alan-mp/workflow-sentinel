@@ -7,6 +7,7 @@ design in `docs/spec.md` and `docs/architecture.md`, visual system in `apps/web/
 ## Commands
 - `npm install` then `npm run db:setup` (local D1 with demo data) and `npm run dev` (http://localhost:8787)
 - `npm run typecheck`, `npm test`, `npm run build`: all three must pass before a change is done
+- `npm run types` after any change to `apps/api/wrangler.jsonc`: `Env` is generated into `worker-configuration.d.ts`, and CI fails when it is stale
 - `npx vitest run packages/engine` for engine tests only; API tests start a local workerd and take about 15 seconds
 - `npm run deploy:test` deploys to the test environment (needs `CLOUDFLARE_ACCOUNT_ID` and a Cloudflare login)
 

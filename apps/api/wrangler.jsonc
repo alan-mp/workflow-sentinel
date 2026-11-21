@@ -1,7 +1,7 @@
 {
   "name": "workflow-sentinel",
   "main": "src/worker.ts",
-  "compatibility_date": "2026-01-01",
+  "compatibility_date": "2026-11-21",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "../web/dist",
@@ -17,8 +17,10 @@
   // Penyimpanan OAuth untuk server MCP. Buat dengan: wrangler kv namespace create sentinel-oauth, lalu isi id.
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "00000000000000000000000000000000" }],
   "triggers": { "crons": ["*/15 * * * *"] },
-  // Log dan jejak permintaan di dashboard Cloudflare (Workers > Observability).
-  "observability": { "enabled": true },
+  // Log dan jejak permintaan di dashboard Cloudflare (Workers > Observability). Traces perlu diaktifkan terpisah.
+  "observability": { "enabled": true, "traces": { "enabled": true } },
+  // Membatasi percobaan login per email (10 per menit). namespace_id harus unik di akun Cloudflare.
+  "ratelimits": [{ "name": "LOGIN_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }],
   // AI tanpa kunci: di lingkungan yang di-deploy, tambahkan "ai": { "binding": "AI" } dan isi AI_GATEWAY_ID
   // (lihat env.test). Binding itu tidak dipasang di sini karena butuh koneksi ke Cloudflare, sehingga
   // pengembangan dan tes lokal tetap berjalan offline.
@@ -34,7 +36,9 @@
     // CLOUDFLARE_ACCOUNT_ID (secret di GitHub Actions, atau di shell saat deploy manual), tidak ditulis di sini.
     // Deploy: npm run deploy:test. Binding D1, R2, KV, dan vars tidak diwarisi, jadi ditulis ulang di sini.
     "test": {
-      "observability": { "enabled": true },
+      "observability": { "enabled": true, "traces": { "enabled": true } },
+      // namespace_id berbeda dari lingkungan utama supaya hitungannya tidak bercampur.
+      "ratelimits": [{ "name": "LOGIN_LIMITER", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }],
       "d1_databases": [
         { "binding": "DB", "database_name": "sentinel-test", "database_id": "0c2c3d5d-8254-4658-895d-3c34676d381b", "migrations_dir": "migrations" }
       ],

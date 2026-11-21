@@ -173,7 +173,7 @@ export const TOOLS = [
 type App = Hono<AppEnv>;
 
 /** Runs one API call in-process as `userId`. The Request object itself carries the identity. */
-async function invoke(app: App, env: Env, userId: string, call: Call): Promise<{ ok: boolean; status: number; body: unknown }> {
+async function invoke(app: App, env: Env, ctx: ExecutionContext, userId: string, call: Call): Promise<{ ok: boolean; status: number; body: unknown }> {
   const raw = typeof call.body === 'string';
   const request = new Request(`https://sentinel.internal/api${call.path}`, {
     method: call.method,
@@ -181,7 +181,7 @@ async function invoke(app: App, env: Env, userId: string, call: Call): Promise<{
     body: call.body === undefined ? undefined : raw ? (call.body as string) : JSON.stringify(call.body),
   });
   internalUsers.set(request, userId);
-  const res = await app.fetch(request, env);
+  const res = await app.fetch(request, env, ctx);
   const text = await res.text();
   let body: unknown = text;
   try {
@@ -190,7 +190,7 @@ async function invoke(app: App, env: Env, userId: string, call: Call): Promise<{
   return { ok: res.ok, status: res.status, body };
 }
 
-export function buildMcpServer(app: App, env: Env, userId: string): McpServer {
+export function buildMcpServer(app: App, env: Env, ctx: ExecutionContext, userId: string): McpServer {
   const server = new McpServer(
     { name: 'sentinel', version: '1.0.0' },
     {
@@ -203,7 +203,7 @@ export function buildMcpServer(app: App, env: Env, userId: string): McpServer {
       spec.name,
       { title: spec.title, description: spec.description, inputSchema: spec.input, annotations: { readOnlyHint: Boolean(spec.readOnly), destructiveHint: false, openWorldHint: false } },
       async (args: unknown) => {
-        const result = await invoke(app, env, userId, (spec.call as (a: unknown) => Call)(args));
+        const result = await invoke(app, env, ctx, userId, (spec.call as (a: unknown) => Call)(args));
         const message = !result.ok && result.body && typeof result.body === 'object' && 'error' in result.body ? String((result.body as { error: unknown }).error) : undefined;
         return {
           isError: !result.ok,
@@ -217,5 +217,5 @@ export function buildMcpServer(app: App, env: Env, userId: string): McpServer {
 
 /** Handles one MCP request for an already-authorized user. Stateless: a server is built per request. */
 export function mcpFetch(app: App, request: Request, env: Env, ctx: ExecutionContext, userId: string): Promise<Response> {
-  return createMcpHandler(() => buildMcpServer(app, env, userId), { route: '/mcp', authContext: { props: { userId } } })(request, env, ctx);
+  return createMcpHandler(() => buildMcpServer(app, env, ctx, userId), { route: '/mcp', authContext: { props: { userId } } })(request, env, ctx);
 }

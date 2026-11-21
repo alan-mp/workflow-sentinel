@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AiDrafter, DraftTurnInput } from '../src/ai';
+import { runCron } from '../src/cron';
 import { deliverDue, sign } from '../src/integrations';
+import { safeEqual } from '../src/security';
 import { runSla } from '../src/requests';
 import { ConflictError, commit, loadRequest } from '../src/store';
 import { setup } from './setup';
@@ -50,6 +52,22 @@ describe('login', () => {
     const res = await t.call(null, 'POST', '/login', { email: 'budi@contoh.test', password: 'salah' });
     expect(res.status).toBe(401);
   });
+
+  it('membatasi percobaan login per email, tanpa mengganggu email lain', async () => {
+    const guess = () => t.call(null, 'POST', '/login', { email: 'Tebak@Contoh.test', password: 'salah' });
+    for (let i = 0; i < 10; i++) expect((await guess()).status).toBe(401);
+    expect(await guess()).toMatchObject({ status: 429, body: { error: expect.stringMatching(/Too many sign-in attempts/) } });
+    // Same email in another case counts toward the same limit.
+    expect((await t.call(null, 'POST', '/login', { email: 'tebak@contoh.test', password: 'salah' })).status).toBe(429);
+    expect((await t.call(null, 'POST', '/login', { email: 'budi@contoh.test', password: 'salah' })).status).toBe(401);
+  });
+
+  it('membandingkan rahasia tanpa bocor lewat panjang', async () => {
+    expect(await safeEqual('token-a', 'token-a')).toBe(true);
+    expect(await safeEqual('token-a', 'token-b')).toBe(false);
+    expect(await safeEqual('token', 'token-lebih-panjang')).toBe(false);
+    expect(await safeEqual('', '')).toBe(true);
+  });
 });
 
 describe('audit trail di database', () => {
@@ -94,6 +112,21 @@ describe('siklus permintaan pembelian', () => {
     expect(up.status).toBe(201);
     expect((await t.call('maya', 'GET', `/attachments/${up.body.id}`)).body).toBe('penawaran harga');
     expect((await t.call('hana', 'GET', `/attachments/${up.body.id}`)).status).toBe(404);
+    const stored = await t.env.FILES.head(`attachments/${up.body.id}`);
+    expect(stored?.httpMetadata?.contentType).toBe('text/plain');
+  });
+
+  it('lampiran di atas 10 MB ditolak, yang besar menurut Content-Length sebelum isinya dibaca', async () => {
+    const init = await t.prepare('budi', 'POST', 'x');
+    const declared = await t.request(`/api/requests/${id}/attachments`, {
+      ...init,
+      headers: { ...(init.headers as Record<string, string>), 'content-length': String(20 * 1024 * 1024) },
+    });
+    expect(declared.status).toBe(413);
+
+    const form = new FormData();
+    form.append('file', new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'besar.bin'));
+    expect(await t.call('budi', 'POST', `/requests/${id}/attachments`, form)).toMatchObject({ status: 413, body: { error: expect.stringMatching(/at most 10 MB/) } });
   });
 
   it('berjalan berurutan lalu paralel sampai disetujui, lalu dikirim ke ERP lewat adapter', async () => {
@@ -470,7 +503,7 @@ describe('integrasi: API masuk dan webhook keluar', () => {
   let hookSecret: string;
   /** Panggilan dari sistem lain: kunci API di header, tanpa sesi pengguna. */
   const api = async (key: string | null, method: string, url: string, body?: unknown) => {
-    const res = await t.app.request(`/api/integrations${url}`, { method, headers: key ? { authorization: `Bearer ${key}` } : {}, body: body ? JSON.stringify(body) : undefined }, t.env);
+    const res = await t.request(`/api/integrations${url}`, { method, headers: key ? { authorization: `Bearer ${key}` } : {}, body: body ? JSON.stringify(body) : undefined });
     return { status: res.status, body: (await res.json()) as any };
   };
 
@@ -555,5 +588,54 @@ describe('integrasi: API masuk dan webhook keluar', () => {
     const clientId = (await t.call('hadi', 'GET', '/admin/integrations')).body.clients[0].id;
     expect((await t.call('hadi', 'DELETE', `/admin/integrations/clients/${clientId}`)).status).toBe(200);
     expect((await api(apiKey, 'GET', '/flows')).status).toBe(401);
+  });
+
+  it('keputusan dijawab sebelum webhook terkirim; pengiriman berjalan lewat waitUntil', async () => {
+    sent.length = 0;
+    const id = (await t.call('budi', 'POST', '/requests', purchase(3_000_000))).body.id;
+    const task = await openTask('maya', id);
+    const http = t.deps.http;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    t.deps.http = (async (url: any, init: any) => {
+      await gate;
+      return http!(url, init);
+    }) as typeof fetch;
+    try {
+      // If delivery were awaited inside the request, this would not return while the gate is closed.
+      const { res, settle, pending } = await t.send(`/api/requests/${id}/decision`, await t.prepare('maya', 'POST', { taskId: task.taskId, type: 'reject', comment: 'Tidak perlu' }));
+      expect(res.status).toBe(200);
+      expect(pending).toHaveLength(1);
+      expect(sent).toHaveLength(0);
+      release();
+      await settle();
+      expect(sent.map((s) => s.url)).toEqual(['https://erp.contoh.test/hook']);
+    } finally {
+      t.deps.http = http;
+    }
+  });
+
+  it('cron tetap mengirim webhook walau penerapan perubahan organisasi gagal', async () => {
+    sent.length = 0;
+    failing = true;
+    const id = (await t.call('budi', 'POST', '/requests', purchase(4_000_000))).body.id;
+    expect((await decide('maya', id, 'reject', { comment: 'Tidak perlu' })).status).toBe(200);
+    failing = false;
+
+    const db = t.env.DB;
+    const broken = new Proxy(db, {
+      get(target, prop) {
+        if (prop === 'prepare') {
+          return (sql: string) => {
+            if (sql.includes('FROM org_changes')) throw new Error('org_changes unavailable');
+            return target.prepare(sql);
+          };
+        }
+        const value = Reflect.get(target, prop);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    await expect(runCron(broken, t.deps, new Date(Date.now() + 2 * 60_000))).rejects.toThrow('Scheduled run failed');
+    expect(sent.map((s) => JSON.parse(s.body).request.id)).toEqual([id]);
   });
 });

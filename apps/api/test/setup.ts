@@ -22,15 +22,35 @@ export async function setup(drafter?: AiDrafter) {
   const { app, deps } = createApp({ drafter });
   const cookies = new Map<string, string>();
 
-  async function call(user: string | null, method: string, url: string, body?: unknown) {
+  /**
+   * A stand-in for the Workers ExecutionContext: work handed to waitUntil is collected, and settle()
+   * waits for it, the way the runtime finishes it after the response.
+   */
+  function executionContext() {
+    const pending: Promise<unknown>[] = [];
+    const ctx = { waitUntil: (p: Promise<unknown>) => void pending.push(p), passThroughOnException() {}, props: {} };
+    return { ctx: ctx as Partial<ExecutionContext> as ExecutionContext, settle: () => Promise.all(pending), pending };
+  }
+
+  /** Sends a request without settling background work, so tests can look at the state in between. */
+  async function send(path: string, init: RequestInit) {
+    const { ctx, settle, pending } = executionContext();
+    const res = await app.request(path, init, env, ctx);
+    return { res, settle, pending };
+  }
+
+  /** Sends a request and finishes its background work before returning. */
+  async function request(path: string, init: RequestInit) {
+    const { res, settle } = await send(path, init);
+    await settle();
+    return res;
+  }
+
+  async function prepare(user: string | null, method: string, body?: unknown): Promise<RequestInit> {
     const headers: Record<string, string> = {};
     if (user) {
       if (!cookies.has(user)) {
-        const res = await app.request(
-          '/api/login',
-          { method: 'POST', body: JSON.stringify({ email: `${user}@contoh.test`, password: DEMO_PASSWORD }) },
-          env,
-        );
+        const res = await request('/api/login', { method: 'POST', body: JSON.stringify({ email: `${user}@contoh.test`, password: DEMO_PASSWORD }) });
         cookies.set(user, res.headers.get('set-cookie')!.split(';')[0]!);
       }
       headers.cookie = cookies.get(user)!;
@@ -38,7 +58,11 @@ export async function setup(drafter?: AiDrafter) {
     let payload: BodyInit | undefined;
     if (body instanceof FormData || typeof body === 'string') payload = body;
     else if (body !== undefined) payload = JSON.stringify(body);
-    const res = await app.request(`/api${url}`, { method, headers, body: payload }, env);
+    return { method, headers, body: payload };
+  }
+
+  async function call(user: string | null, method: string, url: string, body?: unknown) {
+    const res = await request(`/api${url}`, await prepare(user, method, body));
     const text = await res.text();
     let json: any = text;
     try {
@@ -47,5 +71,5 @@ export async function setup(drafter?: AiDrafter) {
     return { status: res.status, body: json };
   }
 
-  return { env, deps, app, call, dispose: () => proxy.dispose() };
+  return { env, deps, app, call, send, request, prepare, dispose: () => proxy.dispose() };
 }

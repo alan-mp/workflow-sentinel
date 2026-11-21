@@ -17,12 +17,33 @@ export async function hashPassword(password: string): Promise<string> {
 export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
   const [scheme, iterations, salt, hash] = (stored ?? '').split('$');
   if (scheme !== 'pbkdf2' || !iterations || !salt || !hash) return false;
-  const actual = await derive(password, unb64(salt), Number(iterations));
-  // Perbandingan waktu-konstan.
-  let diff = actual.length ^ hash.length;
-  for (let i = 0; i < Math.min(actual.length, hash.length); i++) diff |= actual.charCodeAt(i) ^ hash.charCodeAt(i);
+  return safeEqual(await derive(password, unb64(salt), Number(iterations)), hash);
+}
+
+const digest = async (s: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+
+/**
+ * Constant-time comparison for secrets. Both values are hashed first, so the loop always runs over
+ * 32 bytes and timing reveals neither the length nor a matching prefix. (crypto.subtle.timingSafeEqual
+ * is Workers-only, and the API tests run in Node.)
+ */
+export async function safeEqual(a: string, b: string): Promise<boolean> {
+  const [x, y] = await Promise.all([digest(a), digest(b)]);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
   return diff === 0;
 }
+
+/**
+ * Sign-in attempts are limited per email through the LOGIN_LIMITER binding (see wrangler.jsonc).
+ * Keyed by email rather than IP, because many employees share one office IP.
+ */
+export async function loginAllowed(limiter: RateLimit, email: string): Promise<boolean> {
+  const { success } = await limiter.limit({ key: `login:${email.trim().toLowerCase()}` });
+  return success;
+}
+
+export const TOO_MANY_LOGINS = 'Too many sign-in attempts for this email. Wait a minute and try again.';
 
 export function randomToken(bytes = 32): string {
   return [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');

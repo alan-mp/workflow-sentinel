@@ -13,7 +13,8 @@ import {
   type Result,
 } from '@sentinel/engine';
 import type { AppEnv, Deps, SessionUser } from './env';
-import { notifyFinal } from './integrations';
+import { notifyFinal, sendDeliveries } from './integrations';
+import { logError } from './log';
 import { randomToken, shortId } from './security';
 import {
   D1Directory,
@@ -31,7 +32,19 @@ import {
 
 type Row = Record<string, unknown>;
 
-/** Simpan hasil mesin, lalu jalankan efek samping (email, ERP). */
+/** Hands work to the runtime to finish after the response is sent. */
+export type Defer = (work: Promise<unknown>) => void;
+
+/** Defer for a route: work goes to ctx.waitUntil, so it is neither dropped nor awaited by the caller. */
+export const inBackground =
+  (c: { executionCtx: { waitUntil(promise: Promise<unknown>): void } }): Defer =>
+  (work) =>
+    c.executionCtx.waitUntil(work);
+
+/**
+ * Simpan hasil mesin, lalu jalankan efek samping (email, ERP). Webhooks go to `defer` when given;
+ * without it (cron) they stay queued and deliverDue sends them later in the same run.
+ */
 export async function persist(
   db: D1Database,
   deps: Deps,
@@ -39,6 +52,7 @@ export async function persist(
   result: Result,
   prevRev: number | null,
   now: Date,
+  defer?: Defer,
 ): Promise<void> {
   const notices = await noticesFor(db, result.events, result.state, version.definition, now);
   await commit(db, { state: result.state, prevRev, events: result.events, notices, now });
@@ -64,9 +78,10 @@ export async function persist(
   // Tell other systems the outcome. A failure here never undoes the decision; it is retried by cron.
   if (result.events.length > 0) {
     try {
-      await notifyFinal(db, deps, result.state, now);
+      const queued = await notifyFinal(db, result.state, now);
+      if (queued.length > 0 && defer) defer(sendDeliveries(db, deps, queued, now));
     } catch (e) {
-      console.error('webhook queueing failed', e);
+      logError('webhook queueing failed', e, { requestId: result.state.id });
     }
   }
 }
@@ -78,6 +93,11 @@ async function canView(db: D1Database, user: SessionUser, state: RequestState, n
   const delegations = await activeDelegations(db, now, 'to', [user.id]);
   return delegations.some((d) => involved.has(d.fromUserId));
 }
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+/** Room for multipart boundaries and part headers around the file. */
+const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
+const TOO_LARGE = 'Files can be at most 10 MB. Compress the file or split it into parts.';
 
 export function requestRoutes(deps: Deps) {
   const app = new Hono<AppEnv>();
@@ -102,7 +122,7 @@ export function requestRoutes(deps: Deps) {
       { id: shortId('REQ'), requesterId: c.var.user.id, data: body.data ?? {} },
       { directory: new D1Directory(c.env.DB), now },
     );
-    await persist(c.env.DB, deps, version, result, null, now);
+    await persist(c.env.DB, deps, version, result, null, now, inBackground(c));
     return c.json({ id: result.state.id }, 201);
   });
 
@@ -256,7 +276,7 @@ export function requestRoutes(deps: Deps) {
         delegations: await activeDelegations(c.env.DB, now, 'to', [c.var.user.id]),
       },
     );
-    await persist(c.env.DB, deps, version, result, loaded.rev, now);
+    await persist(c.env.DB, deps, version, result, loaded.rev, now, inBackground(c));
     return c.json({ status: result.state.status });
   });
 
@@ -272,7 +292,7 @@ export function requestRoutes(deps: Deps) {
       { actorId: c.var.user.id, data: body.data ?? {} },
       { directory: new D1Directory(c.env.DB), now },
     );
-    await persist(c.env.DB, deps, version, result, loaded.rev, now);
+    await persist(c.env.DB, deps, version, result, loaded.rev, now, inBackground(c));
     return c.json({ status: result.state.status });
   });
 
@@ -282,11 +302,16 @@ export function requestRoutes(deps: Deps) {
     if (!loaded || !(await canView(c.env.DB, c.var.user, loaded.state, now))) {
       return c.json({ error: 'Request not found' }, 404);
     }
+    // Refuse oversized uploads before the body is read; formData() holds the whole body in memory.
+    if (Number(c.req.header('content-length') ?? 0) > MAX_ATTACHMENT_BYTES + MULTIPART_OVERHEAD_BYTES) {
+      return c.json({ error: TOO_LARGE }, 413);
+    }
     const file = (await c.req.formData()).get('file') as unknown;
     if (!(file instanceof File)) return c.json({ error: 'No file provided' }, 400);
-    if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Files can be at most 10 MB' }, 400);
+    if (file.size > MAX_ATTACHMENT_BYTES) return c.json({ error: TOO_LARGE }, 413);
     const id = randomToken(8);
-    await c.env.FILES.put(`attachments/${id}`, await file.arrayBuffer());
+    // R2 takes the File itself, so the upload is not copied into a second buffer.
+    await c.env.FILES.put(`attachments/${id}`, file, { httpMetadata: { contentType: file.type || 'application/octet-stream' } });
     await c.env.DB.batch([
       c.env.DB.prepare(
         'INSERT INTO attachments (id, request_id, uploaded_by, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',

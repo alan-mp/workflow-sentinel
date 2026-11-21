@@ -36,6 +36,10 @@ Browser (React SPA)          MCP client (Claude, etc.)
 
 ## Security notes
 - Sessions are HttpOnly, SameSite=Strict cookies; passwords are PBKDF2 hashes.
+- Sign-in, in the app and on the OAuth consent page, is limited to 10 attempts per email per minute by the Workers Rate
+  Limiting binding (`LOGIN_LIMITER`). It is keyed by email, not IP, because staff share office IPs.
+- Secrets (password hashes, the CSRF token) are compared in constant time over their SHA-256 digests.
+- Attachments are limited to 10 MB; larger uploads are refused from `Content-Length` before the body is read.
 - The OAuth consent page always asks for an explicit decision, uses a CSRF token, and sets a restrictive Content Security Policy.
 - A request is visible only to its requester, its approvers, and their active delegates.
 - The AI drafter receives the SOP, the draft, and authority names, and never employee data.

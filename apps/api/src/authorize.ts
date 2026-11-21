@@ -1,7 +1,7 @@
 import type { AuthRequest } from '@cloudflare/workers-oauth-provider';
 import type { Env, SessionUser } from './env';
 import { sessionUser, userById, verifyLogin } from './index';
-import { randomToken } from './security';
+import { TOO_MANY_LOGINS, loginAllowed, randomToken, safeEqual } from './security';
 
 // The OAuth consent screen for MCP clients. It is rendered by the Worker itself
 // (no JavaScript, no external assets) and always asks for an explicit decision:
@@ -122,7 +122,7 @@ export async function handleAuthorize(request: Request, env: Env): Promise<Respo
 
   const form = await request.formData();
   const sent = String(form.get('csrf') ?? '');
-  if (!sent || sent !== cookie(request, CSRF_COOKIE)) return consent({ ...view, user: session, error: 'This form expired. Please try again.' });
+  if (!sent || !(await safeEqual(sent, cookie(request, CSRF_COOKIE) ?? ''))) return consent({ ...view, user: session, error: 'This form expired. Please try again.' });
 
   if (form.get('decision') !== 'approve') {
     const back = new URL(oauth.redirectUri);
@@ -133,7 +133,9 @@ export async function handleAuthorize(request: Request, env: Env): Promise<Respo
 
   let user = session;
   if (!user) {
-    const userId = await verifyLogin(env.DB, String(form.get('email') ?? ''), String(form.get('password') ?? ''));
+    const email = String(form.get('email') ?? '');
+    if (!(await loginAllowed(env.LOGIN_LIMITER, email))) return consent({ ...view, user: null, error: TOO_MANY_LOGINS });
+    const userId = await verifyLogin(env.DB, email, String(form.get('password') ?? ''));
     user = userId ? await userById(env.DB, userId) : null;
     if (!user) return consent({ ...view, user: null, error: 'The email or password is incorrect.' });
   }

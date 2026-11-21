@@ -22,6 +22,8 @@ jobs:
       - run: npm ci
       - name: Check for vulnerable dependencies
         run: npm audit --audit-level=high
+      - name: Check generated Worker types match wrangler.jsonc
+        run: cd apps/api && npx wrangler types --strict-vars=false --check
       - run: npm run typecheck
       - name: Unit and API tests
         run: npm test

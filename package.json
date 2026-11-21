@@ -9,6 +9,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/api --noEmit && tsc -p apps/web --noEmit",
+    "types": "cd apps/api && wrangler types --strict-vars=false",
     "simulate": "tsx packages/engine/scripts/simulate.ts",
     "build": "vite build apps/web",
     "db:setup": "cd apps/api && wrangler d1 migrations apply sentinel --local && tsx scripts/seed.ts > .seed.sql && wrangler d1 execute sentinel --local --file .seed.sql",

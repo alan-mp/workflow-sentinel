@@ -58,8 +58,10 @@ webhook registered for that flow (or for all flows) and to the request's own `ca
 `request.approved`, `request.rejected`, or `request.cancelled`. Each call carries
 `X-Sentinel-Signature: t=<unix seconds>,v1=<hex>`, where `v1` is HMAC-SHA256 of `<t>.<body>` with the signing secret;
 receivers should recompute it and reject old timestamps. A delivery that does not get a 2xx answer within 5 seconds
-is retried after 1, 5, 30, 120, and 720 minutes, then marked failed; an administrator can send it again. Form data is
-not included in the payload. A delivery failure never changes the decision.
+is retried after 1, 5, 30, 120, and 720 minutes, then marked failed; an administrator can send it again. The first
+attempt runs after the response to the decision is sent (`ctx.waitUntil`), so nobody waits on other systems; retries
+run on the 15-minute cron, so each wait is rounded up to the next cron run. Form data is not included in the payload.
+A delivery failure never changes the decision.
 
 **MCP** (`/mcp`, Streamable HTTP, stateless): 42 tools defined in `apps/api/src/mcp.ts`. Each tool validates its input
 with a schema and calls one API endpoint in-process as the authorized user. OAuth 2.1 with PKCE and dynamic client

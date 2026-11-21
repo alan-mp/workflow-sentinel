@@ -1,11 +1,9 @@
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { handleAuthorize } from './authorize';
+import { runCron } from './cron';
 import type { Env } from './env';
 import { createApp } from './index';
-import { deliverDue } from './integrations';
 import { mcpFetch } from './mcp';
-import { applyDueChanges } from './org';
-import { runSla } from './requests';
 
 const { app, deps } = createApp();
 
@@ -29,10 +27,11 @@ function provider(origin: string): OAuthProvider<Env> {
         },
       },
       defaultHandler: {
-        fetch(request, env) {
+        fetch(request, env, ctx) {
           const { pathname } = new URL(request.url);
           if (pathname === '/authorize') return handleAuthorize(request, env);
-          return app.fetch(request, env);
+          // ctx is passed on so routes can hand work to ctx.waitUntil (webhook delivery).
+          return app.fetch(request, env, ctx);
         },
       },
       authorizeEndpoint: '/authorize',
@@ -53,10 +52,6 @@ export default {
     return provider(new URL(request.url).origin).fetch(request, env, ctx);
   },
   async scheduled(_controller, env) {
-    const now = new Date();
-    // Perubahan struktur yang jatuh tempo diterapkan dulu, supaya eskalasi SLA memakai struktur terbaru.
-    await applyDueChanges(env.DB, deps, now);
-    await runSla(env.DB, deps, now);
-    await deliverDue(env.DB, deps, now);
+    await runCron(env.DB, deps, new Date());
   },
 } satisfies ExportedHandler<Env>;

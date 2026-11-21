@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { startRequest, type RequestState } from '@sentinel/engine';
 import type { AppEnv, Deps } from './env';
-import { persist } from './requests';
+import { logError } from './log';
+import { inBackground, persist } from './requests';
 import { randomToken, shortId } from './security';
 import { D1Directory, auditStatement, currentVersions, getVersion, loadRequest } from './store';
 
@@ -117,7 +118,7 @@ export function integrationApiRoutes(deps: Deps) {
       .bind(result.state.id, client.id, externalRef, callbackUrl)
       .run();
     try {
-      await persist(c.env.DB, deps, version, result, null, now);
+      await persist(c.env.DB, deps, version, result, null, now, inBackground(c));
     } catch (e) {
       await c.env.DB.prepare('DELETE FROM request_sources WHERE request_id = ?').bind(result.state.id).run();
       throw e;
@@ -145,10 +146,13 @@ export function integrationApiRoutes(deps: Deps) {
   return app;
 }
 
-/** Queues one delivery per target when a request reaches a final status, then tries to send them. */
-export async function notifyFinal(db: D1Database, deps: Deps, state: RequestState, now: Date): Promise<void> {
+/**
+ * Queues one delivery per target when a request reaches a final status and returns their ids.
+ * Sending is left to the caller (sendDeliveries after the response) or to the next cron run.
+ */
+export async function notifyFinal(db: D1Database, state: RequestState, now: Date): Promise<string[]> {
   const event = FINAL[state.status];
-  if (!event) return;
+  if (!event) return [];
   const source = await db
     .prepare(
       `SELECT s.external_ref, s.callback_url, c.signing_secret FROM request_sources s JOIN api_clients c ON c.id = s.client_id WHERE s.request_id = ?`,
@@ -161,7 +165,7 @@ export async function notifyFinal(db: D1Database, deps: Deps, state: RequestStat
     .all<Row>();
   const targets = hooks.map((h) => ({ url: h.url as string, secret: h.secret as string }));
   if (source?.callback_url) targets.push({ url: source.callback_url as string, secret: source.signing_secret as string });
-  if (targets.length === 0) return;
+  if (targets.length === 0) return [];
 
   const requester = await db.prepare('SELECT email FROM users WHERE id = ?').bind(state.requesterId).first<Row>();
   const at = now.toISOString();
@@ -189,7 +193,21 @@ export async function notifyFinal(db: D1Database, deps: Deps, state: RequestStat
       .run();
     if (res.meta.changes) ids.push(id);
   }
-  for (const id of ids) await attempt(db, deps, id, now);
+  return ids;
+}
+
+/**
+ * First attempt for freshly queued deliveries, run through ctx.waitUntil so the person deciding
+ * does not wait for other systems. Anything that fails here stays pending and cron retries it.
+ */
+export async function sendDeliveries(db: D1Database, deps: Deps, ids: string[], now: Date): Promise<void> {
+  for (const id of ids) {
+    try {
+      await attempt(db, deps, id, now);
+    } catch (e) {
+      logError('webhook delivery attempt failed', e, { deliveryId: id });
+    }
+  }
 }
 
 async function attempt(db: D1Database, deps: Deps, id: string, now: Date): Promise<boolean> {
