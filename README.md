@@ -13,13 +13,15 @@ people decide.
 
 | Demo account (password `demo1234`) | Role |
 |---|---|
-| `budi@contoh.test` | Requester |
-| `maya@contoh.test` | Approver (unit head) |
-| `fajar@contoh.test` | Approver (finance authority) |
+| `budi@contoh.test` | Requester (Production Line) |
+| `andi@contoh.test` | Approver: head of Production Line, Budi's superior |
+| `fajar@contoh.test` | Approver: finance authority |
 | `hana@contoh.test` | Process owner and organization owner |
-| `hadi@contoh.test` | System administrator (can do everything) |
+| `hadi@contoh.test` | System administrator (can do everything, including Integrations) |
 
-The demo runs on sample data. Demo flow and step names are in Indonesian because they are user-entered data.
+The live demo runs on a fictional 25-person organization (four levels, an acting head, a vacant head); the structure
+is in `apps/api/scripts/demo/`. No real employee data is used. Flow, step and unit names are in Indonesian because
+they are data entered by users; the interface is in English.
 
 ![Approval inbox with SLA tolerance bands](docs/screenshots/inbox.png)
 
@@ -43,8 +45,9 @@ The demo runs on sample data. Demo flow and step names are in Indonesian because
 - **MCP server.** Every feature is also available to AI assistants at `/mcp` through OAuth, with exactly the
   signed-in user's permissions.
 
-![Organization tree with structural findings](docs/screenshots/organization.png)
-![Flow editor with rule tables](docs/screenshots/flow-editor.png)
+![AI summary and anomaly flags on a request, as the approver sees it](docs/screenshots/ai-briefing-and-flags.png)
+![Flow editor: the AI drafter's chat and rule tables with checked SOP quotes](docs/screenshots/flow-editor.png)
+![Organization tree with an acting head and structural findings](docs/screenshots/organization.png)
 
 ## Documentation
 | Document | Contents |
@@ -79,7 +82,7 @@ npm run dev          # http://localhost:8787
 
 ```bash
 npm run typecheck    # TypeScript, all packages
-npm test             # 130 unit and API tests
+npm test             # 131 unit and API tests
 npm run build        # production build of the web app
 ```
 

@@ -141,7 +141,7 @@ Rule evaluation has a parity test: over 40,000 combinations of operators and val
 reference semantics (`rules.test.ts`).
 
 ## 6. Test and deployment plan
-- `npm run typecheck`, `npm test` (130 tests), and `npm run build` must pass locally and in CI.
+- `npm run typecheck`, `npm test` (131 tests), and `npm run build` must pass locally and in CI.
 - Before release, scripted scenario tests run in a real browser against the live test environment, one recorded video
   per group: routing and controls, organization changes, AI features, and integration (66 checks on 21 November 2026;
   every failure was fixed and retested).

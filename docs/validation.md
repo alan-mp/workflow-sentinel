@@ -150,7 +150,7 @@ fast and may be better left where it is.
 
 **Why us**
 - The same IT team holds the source code of the in-house applications that have to be connected.
-- The application exists, is deployed, and has 130 automated tests and a recorded browser scenario test.
+- The application exists, is deployed, and has 131 automated tests and a recorded browser scenario test.
 - The team has read access to the data that shows where approvals are slow.
 
 **Weak points:** one developer, part time; management knows about the initiative but has not formally mandated it.
