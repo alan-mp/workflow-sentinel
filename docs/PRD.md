@@ -1,9 +1,11 @@
 # Sentinel: Product Requirements (one page)
 
 ## 1. Problem
-Internal approvals for leave, IT access, and purchases run through paper, chat, and email. Three things go wrong:
-the person who should approve is unclear and changes from request to request, the rules live in SOP documents that
-no system follows, and nobody can reconstruct afterwards who approved what under which rule. Evidence and sources are
+Internal approvals are scattered: leave, business trips and similar requests each run through their own module of
+the in-house HR application, with approver rules built into each module, and everything else runs through chat and
+email. Three things go wrong: people are unsure where to file a request and who will approve it, because the
+approver changes from request to request; changing a chain means changing an application, so the rules in the SOP
+and the rules in the system drift apart; and nobody can reconstruct afterwards who approved what under which rule. Evidence and sources are
 in [validation.md](validation.md).
 
 ## 2. Target users
