@@ -110,4 +110,5 @@ The first version of this design was reviewed against real organization data and
 | Administrators could not edit flows | First-phase users are the IT team alone | Administrators may act alone; each such action is flagged `adminOverride` in the audit trail |
 | AI through a provider key stored as a Worker secret | A stored key is avoidable on Workers | AI binding plus AI Gateway; no key or token is stored |
 | Results pushed only to the ERP through a fixed adapter | Validation showed approval logic scattered across applications; other systems need to hand requests in and learn the outcome | Inbound API with per-system keys and signed outbound webhooks; approval rules stay only in Sentinel |
+| Any number of drafts per flow, each copied from the newest version | A real browser test showed a second draft silently inheriting the first draft's unreviewed changes | One open draft per flow; a new draft always starts from the newest approved version |
 | Indonesian UI | Product owner asked for professional English | All screens and messages translated; data entered by users is left as written |

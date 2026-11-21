@@ -106,7 +106,7 @@ export function Flows({ me }: { me: Me }) {
                 ) : null}
                 {flow.canEdit && flow.versions.length > 0 ? (
                   <button className="btn small primary" onClick={() => create(flow.key)}>
-                    Draft a change
+                    {flow.versions.some((v: any) => v.status === 'draft') ? 'Open draft' : 'Draft a change'}
                   </button>
                 ) : null}
               </div>

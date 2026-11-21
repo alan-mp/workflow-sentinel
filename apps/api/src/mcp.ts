@@ -100,7 +100,7 @@ export const TOOLS = [
   tool({
     name: 'create_flow_draft',
     title: 'Create a flow draft',
-    description: 'Start a new draft version of a flow, copied from the version currently in effect. For a flow with no versions yet, also pass a name.',
+    description: 'Start a new draft version of a flow, copied from the newest approved version. A flow has at most one open draft: if one exists, its ID is returned (existing: true) instead of a new draft. For a flow with no versions yet, also pass a name.',
     input: z.object({ flowKey: id('Flow key'), name: z.string().optional().describe('Display name; required only for the first draft of a new flow') }),
     call: (a) => ({ method: 'POST', path: '/admin/drafts', body: a }),
   }),

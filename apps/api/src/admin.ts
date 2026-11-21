@@ -133,11 +133,20 @@ export function adminRoutes(deps: Deps) {
     const body = await c.req.json<{ flowKey: string; name?: string }>();
     if (!/^[a-z0-9_]+$/.test(body.flowKey ?? '')) return c.json({ error: 'Flow key may contain only lowercase letters, digits, and underscores' }, 400);
     if (!(await owns(c.env.DB, c.var.user, body.flowKey))) return c.json(NOT_OWNER, 403);
-    const latest = await c.env.DB.prepare('SELECT * FROM flow_versions WHERE flow_key = ? ORDER BY version DESC LIMIT 1')
+    // One open draft per flow: a second "draft a change" opens the existing draft instead of starting a
+    // parallel one, so no draft can silently carry another draft's unreviewed changes.
+    const open = await c.env.DB.prepare(`SELECT id FROM flow_versions WHERE flow_key = ? AND status = 'draft' ORDER BY version DESC LIMIT 1`)
       .bind(body.flowKey)
       .first<Row>();
-    const base = latest ? rowToVersion(latest) : null;
-    const id = `${body.flowKey}-v${(base?.version ?? 0) + 1}-${randomToken(3)}`;
+    if (open) return c.json({ id: open.id, existing: true }, 200);
+    // A new draft starts from the newest approved version, never from another draft.
+    const active = await c.env.DB.prepare(`SELECT * FROM flow_versions WHERE flow_key = ? AND status = 'active' ORDER BY version DESC LIMIT 1`)
+      .bind(body.flowKey)
+      .first<Row>();
+    const base = active ? rowToVersion(active) : null;
+    const top = await c.env.DB.prepare('SELECT MAX(version) AS v FROM flow_versions WHERE flow_key = ?').bind(body.flowKey).first<Row>();
+    const nextVersion = ((top?.v as number | null) ?? 0) + 1;
+    const id = `${body.flowKey}-v${nextVersion}-${randomToken(3)}`;
     const now = new Date().toISOString();
     await c.env.DB.batch([
       c.env.DB.prepare(
@@ -146,7 +155,7 @@ export function adminRoutes(deps: Deps) {
       ).bind(
         id,
         body.flowKey,
-        (base?.version ?? 0) + 1,
+        nextVersion,
         JSON.stringify(base?.definition ?? BLANK(body.flowKey, body.name || body.flowKey)),
         base?.sopUrl ?? null,
         base?.sopDocumentId ?? null,

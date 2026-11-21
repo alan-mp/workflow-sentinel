@@ -302,6 +302,14 @@ describe('membuat dan mengaktifkan alur', () => {
     expect(draft).toMatchObject({ status: 'draft', version: 2, sop: { name: 'SOP Pembelian' } });
   });
 
+  it('satu draf terbuka per alur: membuat draf lagi membuka draf yang sama', async () => {
+    const again = await t.call('dewi', 'POST', '/admin/drafts', { flowKey: 'purchase' });
+    expect(again.status).toBe(200);
+    expect(again.body).toEqual({ id: draftId, existing: true });
+    const drafts = await t.env.DB.prepare("SELECT COUNT(*) AS n FROM flow_versions WHERE flow_key = 'purchase' AND status = 'draft'").first<any>();
+    expect(drafts.n).toBe(1);
+  });
+
   it('AI bertanya kalau SOP ambigu dan tidak mengubah draf', async () => {
     const res = await t.call('hana', 'POST', `/admin/drafts/${draftId}/chat`, { message: 'Bagian ini ambigu' });
     expect(res.body).toMatchObject({ updated: false });
