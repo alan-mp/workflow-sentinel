@@ -60,5 +60,19 @@ describe('requester.head_of_level', () => {
     expect(await gapsOf('u_gm')).toEqual([]);
     expect((await gapsOf('u_dir')).sort()).toEqual(['atasan', 'atasan_2']);
   });
+
+  it('"not a division head" holds for people who head no unit', async () => {
+    const def: FlowDefinition = structuredClone(leave);
+    const cond = def.steps.find((x) => x.id === 'cuti_panjang') as any;
+    cond.branches = [
+      { when: [{ field: 'days', op: 'gt', value: 5 }, { field: 'requester.head_of_level', op: 'neq', value: 'divisi' }], steps: [{ type: 'approval', id: 'atasan_2', name: 'Atasan dari atasan', approver: { kind: 'manager', level: 2 } }] },
+    ];
+    cond.otherwise = [];
+    const steps = async (who: string) =>
+      (await simulate(def, { requesterId: who, data: long }, dir, new Date('2026-11-22T00:00:00Z'))).filter((s) => s.type === 'approval' && !s.skipped).map((s) => s.stepId);
+    expect(await steps('u_staff')).toEqual(['atasan', 'atasan_2']);
+    expect(await steps('u_mgr')).toEqual(['atasan', 'atasan_2']);
+    expect(await steps('u_gm')).toEqual(['atasan']);
+  });
 });
 

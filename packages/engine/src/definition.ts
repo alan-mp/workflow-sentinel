@@ -186,7 +186,7 @@ export interface FlowDefinition {
 /** Field bawaan yang boleh dipakai di kondisi selain field permintaan. */
 export const BUILTIN_FIELDS: Record<string, Field['type']> = {
   'requester.department': 'string',
-  /** Level of the unit the requester heads (direksi, divisi, ...), or empty when they head none. */
+  /** Level of the unit the requester heads (direksi, divisi, ...), or "none" when they head none. */
   'requester.head_of_level': 'string',
 };
 

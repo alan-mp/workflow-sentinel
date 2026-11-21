@@ -42,7 +42,7 @@ A flow definition has three parts: `fields` (the request form), `tables` (first-
 (approval, condition, parallel, notify). An approver is one of: superior N levels up, head of the requester's unit at a
 level, holders of an authority, a named user, or a rule table. Conditions compare form fields, or two built-in facts
 about the requester read from the organization tree: `requester.department` and `requester.head_of_level` (the level
-of the unit the requester heads, such as `divisi`, or empty). Examples are in `packages/engine/examples/`.
+of the unit the requester heads, such as `divisi`, or `none`). Examples are in `packages/engine/examples/`.
 
 ## 3. Interfaces
 **HTTP API** (JSON, cookie session; all under `/api`):
