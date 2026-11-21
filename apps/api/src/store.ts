@@ -231,28 +231,28 @@ export async function noticesFor(
     const d = (e.detail ?? {}) as Record<string, unknown>;
     switch (e.action) {
       case 'task_created':
-        push(await withDelegates(d.assignees as string[]), `${label} menunggu persetujuan Anda (${stepName(e.stepId)}).`);
+        push(await withDelegates(d.assignees as string[]), `${label} is awaiting your approval (${stepName(e.stepId)}).`);
         break;
       case 'sla_reminder':
-        push(await withDelegates(d.assignees as string[]), `Pengingat: ${label} melewati tenggat (${stepName(e.stepId)}).`);
+        push(await withDelegates(d.assignees as string[]), `Reminder: ${label} is past its due date (${stepName(e.stepId)}).`);
         break;
       case 'task_reassigned':
-        push(await withDelegates(d.assignees as string[]), `${label} dialihkan ke Anda karena perubahan struktur organisasi (${stepName(e.stepId)}).`);
+        push(await withDelegates(d.assignees as string[]), `${label} was reassigned to you after a change to the organization structure (${stepName(e.stepId)}).`);
         break;
       case 'sla_escalated':
-        push(d.added as string[], `Eskalasi: ${label} belum diputuskan dan kini juga menunggu Anda (${stepName(e.stepId)}).`);
+        push(d.added as string[], `Escalation: ${label} is still undecided and now also awaits your approval (${stepName(e.stepId)}).`);
         break;
       case 'notification_requested':
         push(d.recipients as string[], `${label}: ${d.message as string}`);
         break;
       case 'request_approved':
-        push([state.requesterId], `${label} disetujui.`);
+        push([state.requesterId], `${label} was approved.`);
         break;
       case 'request_rejected':
-        push([state.requesterId], `${label} ditolak.`);
+        push([state.requesterId], `${label} was rejected.`);
         break;
       case 'request_revision_requested':
-        push([state.requesterId], `${label} perlu direvisi.`);
+        push([state.requesterId], `${label} needs revision.`);
         break;
     }
   }
@@ -305,7 +305,7 @@ export async function commit(
   try {
     await db.batch(stmts);
   } catch (e) {
-    if (String(e).includes('CHECK')) throw new ConflictError('Permintaan baru saja diubah orang lain, muat ulang.');
+    if (String(e).includes('CHECK')) throw new ConflictError('This request was just changed by someone else. Reload and try again.');
     throw e;
   }
 }

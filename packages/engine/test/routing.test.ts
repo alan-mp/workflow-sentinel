@@ -82,7 +82,7 @@ describe('aturan routing', () => {
       { requesterId: 'u_dewi', data: { leave_type: 'x', start_date: '2026-12-10', end_date: '2026-12-11', days: 1 } },
       directory,
     );
-    expect(steps[0]?.error).toMatch(/Tidak ada atasan di atas Dewi/);
+    expect(steps[0]?.error).toMatch(/No superior above Dewi/);
   });
 });
 

@@ -22,7 +22,7 @@ const BLANK = (key: string, name: string): FlowDefinition => ({
   name,
   fields: [],
   tables: [],
-  steps: [{ type: 'approval', id: 'atasan', name: 'Atasan langsung', approver: { kind: 'manager', level: 1 }, slaHours: 24 }],
+  steps: [{ type: 'approval', id: 'atasan', name: 'Direct superior', approver: { kind: 'manager', level: 1 }, slaHours: 24 }],
 });
 
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -38,25 +38,26 @@ export async function ownedFlows(db: D1Database, user: SessionUser): Promise<str
   const { results } = await db.prepare('SELECT flow_key FROM flow_owners WHERE user_id = ? ORDER BY 1').bind(user.id).all<Row>();
   return results.map((r) => r.flow_key as string);
 }
-const owns = async (db: D1Database, user: SessionUser, flowKey: string) => (await ownedFlows(db, user)).includes(flowKey);
-const NOT_OWNER = { error: 'Hanya pemilik proses alur ini yang boleh melakukannya' };
+/** Admin sistem boleh mengelola semua alur; pemilik proses hanya alur miliknya. */
+const owns = async (db: D1Database, user: SessionUser, flowKey: string) => user.isAdmin || (await ownedFlows(db, user)).includes(flowKey);
+const NOT_OWNER = { error: 'Only a process owner of this flow can do this' };
 
 export function adminRoutes(deps: Deps) {
   const app = new Hono<AppEnv>();
 
   app.use('*', async (c, next) => {
     if (!c.var.user.isAdmin && (await ownedFlows(c.env.DB, c.var.user)).length === 0) {
-      return c.json({ error: 'Khusus pemilik proses dan admin sistem' }, 403);
+      return c.json({ error: 'Process owners and system administrators only' }, 403);
     }
     await next();
   });
-  const sysadminOnly = (c: Context<AppEnv>) => (c.var.user.isAdmin ? null : c.json({ error: 'Khusus admin sistem' }, 403));
+  const sysadminOnly = (c: Context<AppEnv>) => (c.var.user.isAdmin ? null : c.json({ error: 'System administrators only' }, 403));
 
   const ownedDraft = async (
     c: Context<AppEnv>,
   ): Promise<{ draft: StoredVersion; error?: undefined } | { draft?: undefined; error: Response }> => {
     const v = await getVersion(c.env.DB, c.req.param('id')!);
-    if (!v || v.status !== 'draft') return { error: c.json({ error: 'Draf tidak ditemukan' }, 404) };
+    if (!v || v.status !== 'draft') return { error: c.json({ error: 'Draft not found' }, 404) };
     if (!(await owns(c.env.DB, c.var.user, v.flowKey))) return { error: c.json(NOT_OWNER, 403) };
     return { draft: v };
   };
@@ -88,7 +89,7 @@ export function adminRoutes(deps: Deps) {
           return {
             key,
             name: (list[0]?.name as string | undefined) ?? key,
-            canEdit: mine.includes(key),
+            canEdit: c.var.user.isAdmin || mine.includes(key),
             owners: owners.results.filter((o) => o.flow_key === key).map((o) => ({ id: o.id, name: o.name })),
             versions: list.map((v) => ({ ...v, edited_by: JSON.parse(v.edited_by as string) })),
           };
@@ -102,13 +103,12 @@ export function adminRoutes(deps: Deps) {
     if (denied) return denied;
     const key = c.req.param('key');
     const { userIds } = await c.req.json<{ userIds: string[] }>();
-    if (!/^[a-z0-9_]+$/.test(key)) return c.json({ error: 'Kunci alur: huruf kecil, angka, dan _' }, 400);
+    if (!/^[a-z0-9_]+$/.test(key)) return c.json({ error: 'Flow key may contain only lowercase letters, digits, and underscores' }, 400);
     const ids = [...new Set(Array.isArray(userIds) ? userIds : [])];
-    if (ids.length < 2) return c.json({ error: 'Tiap alur butuh minimal dua pemilik, supaya ada orang kedua yang mengaktifkan' }, 400);
+    if (ids.length < 2) return c.json({ error: 'Each flow needs at least two owners, so that a second person can activate it' }, 400);
     for (const id of ids) {
       const u = await c.env.DB.prepare('SELECT is_admin FROM users WHERE id = ?').bind(id).first<Row>();
-      if (!u) return c.json({ error: `User ${id} tidak ditemukan` }, 400);
-      if (u.is_admin === 1) return c.json({ error: 'Admin sistem tidak boleh menjadi pemilik proses' }, 400);
+      if (!u) return c.json({ error: `User ${id} not found` }, 400);
     }
     const now = new Date().toISOString();
     await c.env.DB.batch([
@@ -130,7 +130,7 @@ export function adminRoutes(deps: Deps) {
 
   app.post('/drafts', async (c) => {
     const body = await c.req.json<{ flowKey: string; name?: string }>();
-    if (!/^[a-z0-9_]+$/.test(body.flowKey ?? '')) return c.json({ error: 'Kunci alur: huruf kecil, angka, dan _' }, 400);
+    if (!/^[a-z0-9_]+$/.test(body.flowKey ?? '')) return c.json({ error: 'Flow key may contain only lowercase letters, digits, and underscores' }, 400);
     if (!(await owns(c.env.DB, c.var.user, body.flowKey))) return c.json(NOT_OWNER, 403);
     const latest = await c.env.DB.prepare('SELECT * FROM flow_versions WHERE flow_key = ? ORDER BY version DESC LIMIT 1')
       .bind(body.flowKey)
@@ -161,9 +161,9 @@ export function adminRoutes(deps: Deps) {
 
   app.get('/versions/:id', async (c) => {
     const v = await getVersion(c.env.DB, c.req.param('id'));
-    if (!v) return c.json({ error: 'Versi tidak ditemukan' }, 404);
+    if (!v) return c.json({ error: 'Version not found' }, 404);
     const canEdit = await owns(c.env.DB, c.var.user, v.flowKey);
-    if (!canEdit && !c.var.user.isAdmin) return c.json({ error: 'Versi tidak ditemukan' }, 404);
+    if (!canEdit && !c.var.user.isAdmin) return c.json({ error: 'Version not found' }, 404);
     const [chat, sop, roles] = await Promise.all([
       c.env.DB.prepare('SELECT role, content, created_at FROM chat_messages WHERE flow_version_id = ? ORDER BY id').bind(v.id).all(),
       v.sopDocumentId
@@ -179,7 +179,7 @@ export function adminRoutes(deps: Deps) {
       roles: roles.results.map((r) => r.role),
       roleNames: Object.fromEntries(roles.results.map((r) => [r.role, r.name])),
       canEdit,
-      canActivate: canEdit && v.status === 'draft' && !v.editedBy.includes(c.var.user.id),
+      canActivate: canEdit && v.status === 'draft' && (c.var.user.isAdmin || !v.editedBy.includes(c.var.user.id)),
     });
   });
 
@@ -189,7 +189,7 @@ export function adminRoutes(deps: Deps) {
     const body = await c.req.json<{ definition: unknown; sopUrl?: string }>();
     const parsed = FlowDefinitionSchema.safeParse(body.definition);
     if (!parsed.success) {
-      return c.json({ error: 'Definisi tidak valid', issues: validateDefinition(body.definition).issues }, 400);
+      return c.json({ error: 'Definition is not valid', issues: validateDefinition(body.definition).issues }, 400);
     }
     const next = editDraft(draft, c.var.user.id, { definition: parsed.data as FlowDefinition, sopUrl: body.sopUrl || undefined });
     await c.env.DB.batch([
@@ -208,7 +208,7 @@ export function adminRoutes(deps: Deps) {
   app.post('/simulate', async (c) => {
     const body = await c.req.json<{ definition: unknown; requesterId: string; data: Record<string, unknown> }>();
     const checked = validateDefinition(body.definition);
-    if (!checked.definition) return c.json({ error: 'Definisi belum valid', issues: checked.issues }, 400);
+    if (!checked.definition) return c.json({ error: 'Definition is not valid yet', issues: checked.issues }, 400);
     const org = await loadOrg(c.env.DB);
     const steps = await simulate(checked.definition, { requesterId: body.requesterId, data: body.data ?? {} }, new InMemoryDirectory(org));
     return c.json({ steps, names: Object.fromEntries(org.users.map((u) => [u.id, u.name])) });
@@ -218,7 +218,7 @@ export function adminRoutes(deps: Deps) {
     const { draft, error } = await ownedDraft(c);
     if (!draft) return error;
     const body = await c.req.json<{ name: string; content: string }>();
-    if (!body.content?.trim()) return c.json({ error: 'Isi SOP kosong' }, 400);
+    if (!body.content?.trim()) return c.json({ error: 'SOP content is empty' }, 400);
     const sopId = randomToken(8);
     const editedBy = draft.editedBy.includes(c.var.user.id) ? draft.editedBy : [...draft.editedBy, c.var.user.id];
     await c.env.DB.batch([
@@ -242,7 +242,7 @@ export function adminRoutes(deps: Deps) {
 
   app.get('/sop/:id', async (c) => {
     const row = await c.env.DB.prepare('SELECT name, content FROM sop_documents WHERE id = ?').bind(c.req.param('id')).first<Row>();
-    if (!row) return c.json({ error: 'SOP tidak ditemukan' }, 404);
+    if (!row) return c.json({ error: 'SOP not found' }, 404);
     return c.text(row.content as string);
   });
 
@@ -250,9 +250,9 @@ export function adminRoutes(deps: Deps) {
     const { draft, error } = await ownedDraft(c);
     if (!draft) return error;
     const drafter = deps.drafter ?? drafterFromEnv(c.env);
-    if (!drafter) return c.json({ error: 'AI belum dikonfigurasi (AI_GATEWAY_URL dan ANTHROPIC_API_KEY)' }, 503);
+    if (!drafter) return c.json({ error: 'The AI drafter is not configured for this environment. Ask a system administrator to set AI_GATEWAY_ID.' }, 503);
     const { message } = await c.req.json<{ message: string }>();
-    if (!message?.trim()) return c.json({ error: 'Pesan kosong' }, 400);
+    if (!message?.trim()) return c.json({ error: 'Message is empty' }, 400);
 
     const db = c.env.DB;
     const [history, sop, roles] = await Promise.all([
@@ -272,8 +272,8 @@ export function adminRoutes(deps: Deps) {
         message,
       });
     } catch (e) {
-      console.error('AI drafter gagal', e);
-      return c.json({ error: 'Layanan AI sedang bermasalah, coba lagi.' }, 502);
+      console.error('AI drafter failed', e);
+      return c.json({ error: 'The AI service is having problems. Try again.' }, 502);
     }
 
     const now = new Date().toISOString();
@@ -285,7 +285,7 @@ export function adminRoutes(deps: Deps) {
         by,
         now,
       );
-    const stmts = [insertChat('user', message, c.var.user.id), insertChat('assistant', output.reply || '(tanpa jawaban)', null)];
+    const stmts = [insertChat('user', message, c.var.user.id), insertChat('assistant', output.reply || '(no reply)', null)];
 
     if (output.draft) {
       // Hasil AI diperiksa ulang di sini; AI hanya pernah menulis ke draf.
@@ -325,21 +325,21 @@ export function adminRoutes(deps: Deps) {
     const { draft, error } = await ownedDraft(c);
     if (!draft) return error;
     const checked = validateDefinition(draft.definition);
-    if (!checked.ok) return c.json({ error: 'Draf masih punya masalah', issues: checked.issues }, 400);
+    if (!checked.ok) return c.json({ error: 'The draft still has issues', issues: checked.issues }, 400);
     const { results } = await c.env.DB.prepare(
-      'SELECT o.user_id AS id FROM flow_owners o JOIN users u ON u.id = o.user_id WHERE o.flow_key = ? AND u.is_admin = 0',
+      'SELECT o.user_id AS id FROM flow_owners o WHERE o.flow_key = ?',
     )
       .bind(draft.flowKey)
       .all<Row>();
     const reviewers = results.map((r) => r.id as string).filter((id) => !draft.editedBy.includes(id));
-    if (reviewers.length === 0) return c.json({ error: 'Tidak ada pemilik proses lain di alur ini yang bisa meninjau draf' }, 400);
+    if (reviewers.length === 0) return c.json({ error: 'No other process owner of this flow can review the draft' }, 400);
     const now = new Date().toISOString();
     await c.env.DB.batch([
       auditStatement(c.env.DB, event(c.var.user.id, draft.id, 'version_submitted', { reviewers })),
       ...reviewers.map((userId) =>
         notificationStatement(
           c.env.DB,
-          { userId, message: `Draf alur "${draft.definition.name}" v${draft.version} menunggu tinjauan dan aktivasi Anda.` },
+          { userId, message: `Draft of flow "${draft.definition.name}" v${draft.version} is awaiting your review and activation.` },
           now,
         ),
       ),
@@ -352,12 +352,13 @@ export function adminRoutes(deps: Deps) {
     if (!draft) return error;
     const body = await c.req.json<{ effectiveFrom: string }>();
     const effective = new Date(body.effectiveFrom);
-    if (Number.isNaN(effective.getTime())) return c.json({ error: 'Tanggal berlaku tidak valid' }, 400);
+    if (Number.isNaN(effective.getTime())) return c.json({ error: 'Effective date is not valid' }, 400);
     // Aktor selalu manusia dari sesi login; tidak ada jalur lain ke fungsi ini.
     const { version, events } = activateVersion(draft, {
       actor: { type: 'user', id: c.var.user.id },
       effectiveFrom: effective.toISOString(),
       now: new Date(),
+      adminOverride: c.var.user.isAdmin,
     });
     await c.env.DB.batch([
       c.env.DB.prepare(
@@ -386,7 +387,7 @@ export function adminRoutes(deps: Deps) {
     const lines = (await c.req.text()).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const header = lines.shift()?.split(',').map((h) => h.trim());
     const need = ['id', 'email', 'name'];
-    if (!header || need.some((h) => !header.includes(h))) return c.json({ error: `Kolom wajib: ${need.join(', ')}` }, 400);
+    if (!header || need.some((h) => !header.includes(h))) return c.json({ error: `Required columns: ${need.join(', ')}` }, 400);
     const org = await loadOrg(c.env.DB);
     const units = new Map(org.units.map((u) => [u.id, u]));
     const departmentOf = (unitId: string): string => {
@@ -400,10 +401,10 @@ export function adminRoutes(deps: Deps) {
     for (const line of lines) {
       const cells = line.split(',').map((x) => x.trim());
       const row = Object.fromEntries(header.map((h, i) => [h, cells[i] ?? '']));
-      if (need.some((h) => !row[h])) return c.json({ error: `Baris tidak lengkap: ${line}` }, 400);
-      if (row.unit_id && !units.has(row.unit_id)) return c.json({ error: `Unit ${row.unit_id} belum ada; impor daftar unit lebih dulu (${row.name})` }, 400);
+      if (need.some((h) => !row[h])) return c.json({ error: `Incomplete row: ${line}` }, 400);
+      if (row.unit_id && !units.has(row.unit_id)) return c.json({ error: `Unit ${row.unit_id} does not exist yet; import the unit list first (${row.name})` }, 400);
       const heads = org.units.find((u) => u.headUserId === row.id && u.id !== row.unit_id);
-      if (heads && row.unit_id) return c.json({ error: `${row.name} masih kepala ${heads.name}; ganti kepalanya lewat usulan sebelum memindahkan` }, 400);
+      if (heads && row.unit_id) return c.json({ error: `${row.name} is still head of ${heads.name}; change the head through a proposal before moving them` }, 400);
       const exists = org.users.some((u) => u.id === row.id);
       let hash: string | null = null;
       if (!exists) {

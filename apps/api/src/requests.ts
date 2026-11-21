@@ -87,7 +87,7 @@ export function requestRoutes(deps: Deps) {
     const body = await c.req.json<{ flowKey: string; data: Record<string, unknown> }>();
     const now = new Date();
     const version = (await currentVersions(c.env.DB, now)).find((v) => v.flowKey === body.flowKey);
-    if (!version) return c.json({ error: 'Alur tidak ditemukan atau belum berlaku' }, 404);
+    if (!version) return c.json({ error: 'Flow not found or not yet in effect' }, 404);
     const result = await startRequest(
       version,
       { id: shortId('REQ'), requesterId: c.var.user.id, data: body.data ?? {} },
@@ -176,7 +176,7 @@ export function requestRoutes(deps: Deps) {
     const now = new Date();
     const loaded = await loadRequest(c.env.DB, c.req.param('id'));
     if (!loaded || !(await canView(c.env.DB, c.var.user, loaded.state, now))) {
-      return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+      return c.json({ error: 'Request not found' }, 404);
     }
     const { state } = loaded;
     const version = (await getVersion(c.env.DB, state.flowVersionId))!;
@@ -232,10 +232,10 @@ export function requestRoutes(deps: Deps) {
       comment?: string;
       attachmentIds?: string[];
     }>();
-    if (!['approve', 'reject', 'request_revision'].includes(body.type)) return c.json({ error: 'Aksi tidak dikenal' }, 400);
+    if (!['approve', 'reject', 'request_revision'].includes(body.type)) return c.json({ error: 'Unknown action' }, 400);
     const now = new Date();
     const loaded = await loadRequest(c.env.DB, c.req.param('id'));
-    if (!loaded) return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+    if (!loaded) return c.json({ error: 'Request not found' }, 404);
     const version = (await getVersion(c.env.DB, loaded.state.flowVersionId))!;
     const result = await act(
       loaded.state,
@@ -255,7 +255,7 @@ export function requestRoutes(deps: Deps) {
     const body = await c.req.json<{ data: Record<string, unknown> }>();
     const now = new Date();
     const loaded = await loadRequest(c.env.DB, c.req.param('id'));
-    if (!loaded || loaded.state.requesterId !== c.var.user.id) return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+    if (!loaded || loaded.state.requesterId !== c.var.user.id) return c.json({ error: 'Request not found' }, 404);
     const version = (await getVersion(c.env.DB, loaded.state.flowVersionId))!;
     const result = await resubmit(
       loaded.state,
@@ -271,11 +271,11 @@ export function requestRoutes(deps: Deps) {
     const now = new Date();
     const loaded = await loadRequest(c.env.DB, c.req.param('id'));
     if (!loaded || !(await canView(c.env.DB, c.var.user, loaded.state, now))) {
-      return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+      return c.json({ error: 'Request not found' }, 404);
     }
     const file = (await c.req.formData()).get('file') as unknown;
-    if (!(file instanceof File)) return c.json({ error: 'File tidak ada' }, 400);
-    if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Ukuran file maksimal 10 MB' }, 400);
+    if (!(file instanceof File)) return c.json({ error: 'No file provided' }, 400);
+    if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Files can be at most 10 MB' }, 400);
     const id = randomToken(8);
     await c.env.FILES.put(`attachments/${id}`, await file.arrayBuffer());
     await c.env.DB.batch([
@@ -298,10 +298,10 @@ export function requestRoutes(deps: Deps) {
     const row = await c.env.DB.prepare('SELECT * FROM attachments WHERE id = ?').bind(c.req.param('id')).first<Row>();
     const loaded = row && (await loadRequest(c.env.DB, row.request_id as string));
     if (!row || !loaded || !(await canView(c.env.DB, c.var.user, loaded.state, new Date()))) {
-      return c.json({ error: 'File tidak ditemukan' }, 404);
+      return c.json({ error: 'File not found' }, 404);
     }
     const object = await c.env.FILES.get(`attachments/${row.id}`);
-    if (!object) return c.json({ error: 'File tidak ditemukan' }, 404);
+    if (!object) return c.json({ error: 'File not found' }, 404);
     return new Response(object.body, {
       headers: {
         'content-type': 'application/octet-stream',
@@ -345,32 +345,32 @@ export function requestRoutes(deps: Deps) {
     const starts = Date.parse(body.startsAt);
     const ends = Date.parse(body.endsAt);
     if (Number.isNaN(starts) || Number.isNaN(ends) || ends <= starts) {
-      return c.json({ error: 'Delegasi wajib punya waktu mulai dan selesai yang valid' }, 400);
+      return c.json({ error: 'A delegation needs valid start and end times' }, 400);
     }
-    if (body.toUserId === fromUserId) return c.json({ error: 'Tidak bisa mendelegasikan ke orang yang sama' }, 400);
+    if (body.toUserId === fromUserId) return c.json({ error: 'You cannot delegate to the same person' }, 400);
     const directory = new D1Directory(c.env.DB);
     const [from, to] = await Promise.all([directory.getUser(fromUserId), directory.getUser(body.toUserId)]);
-    if (!from || !to) return c.json({ error: 'User tidak ditemukan' }, 400);
+    if (!from || !to) return c.json({ error: 'User not found' }, 400);
     // Atas nama orang lain hanya boleh oleh atasan langsungnya.
     const superior = fromUserId === me.id ? undefined : await superiorOf(from, { directory, now: new Date() }).catch(() => undefined);
     if (fromUserId !== me.id && superior?.user.id !== me.id) {
-      return c.json({ error: 'Hanya atasan langsung yang boleh membuat delegasi atas nama orang lain' }, 403);
+      return c.json({ error: "Only the direct superior can create a delegation on someone else's behalf" }, 403);
     }
     const id = randomToken(8);
     const now = new Date().toISOString();
-    const fmt = (ms: number) => new Date(ms).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' });
-    const period = `${fmt(starts)} sampai ${fmt(ends)} WIB`;
+    const fmt = (ms: number) => new Date(ms).toLocaleString('en-GB', { timeZone: 'Asia/Jakarta', dateStyle: 'medium', timeStyle: 'short' });
+    const period = `${fmt(starts)} to ${fmt(ends)} WIB`;
     const stmts = [
       c.env.DB.prepare(
         'INSERT INTO delegations (id, from_user_id, to_user_id, starts_at, ends_at, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ).bind(id, fromUserId, body.toUserId, new Date(starts).toISOString(), new Date(ends).toISOString(), now, me.id),
-      notificationStatement(c.env.DB, { userId: body.toUserId, message: `Anda menerima delegasi approval dari ${from.name} (${period}).` }, now),
+      notificationStatement(c.env.DB, { userId: body.toUserId, message: `You received an approval delegation from ${from.name} (${period}).` }, now),
     ];
     if (fromUserId !== me.id) {
       stmts.push(
         notificationStatement(
           c.env.DB,
-          { userId: fromUserId, message: `${me.name} mendelegasikan approval Anda ke ${to.name} (${period}).` },
+          { userId: fromUserId, message: `${me.name} delegated your approvals to ${to.name} (${period}).` },
           now,
         ),
       );

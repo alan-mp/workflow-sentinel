@@ -30,11 +30,11 @@ const OPERATOR: Record<Condition['op'], string> = {
 function encode(raw: unknown, type: FieldType, where: string, code: 'INVALID_DATA' | 'INVALID_DEFINITION'): string | number | boolean {
   if (type === 'date') {
     const ms = typeof raw === 'string' ? Date.parse(raw) : Number.NaN;
-    if (Number.isNaN(ms)) throw new EngineError(code, `${where} harus berupa tanggal yang valid`);
+    if (Number.isNaN(ms)) throw new EngineError(code, `${where} must be a valid date`);
     return ms;
   }
   if (type === 'number' ? typeof raw !== 'number' || !Number.isFinite(raw) : typeof raw !== type) {
-    throw new EngineError(code, `${where} harus bertipe ${type}`);
+    throw new EngineError(code, `${where} must be of type ${type}`);
   }
   return raw as string | number | boolean;
 }
@@ -65,11 +65,11 @@ export function compileConditions(when: Condition[], types: Record<string, Field
   return {
     all: when.map((c) => {
       const type = types[c.field];
-      if (!type) throw new EngineError('INVALID_DEFINITION', `Kondisi merujuk field yang tidak ada: ${c.field}`);
+      if (!type) throw new EngineError('INVALID_DEFINITION', `Condition refers to a field that does not exist: ${c.field}`);
       if ((c.op === 'in') !== Array.isArray(c.value)) {
-        throw new EngineError('INVALID_DEFINITION', `Operator ${c.op} pada ${c.field} memakai bentuk nilai yang salah`);
+        throw new EngineError('INVALID_DEFINITION', `Operator ${c.op} on ${c.field} has the wrong kind of value`);
       }
-      const where = `Nilai kondisi untuk ${c.field}`;
+      const where = `Condition value for ${c.field}`;
       const value = Array.isArray(c.value)
         ? c.value.map((v) => encode(v, type, where, 'INVALID_DEFINITION'))
         : encode(c.value, type, where, 'INVALID_DEFINITION');
@@ -107,7 +107,7 @@ export async function firstMatch(candidates: { when: Condition[] }[], facts: Fac
     const { events } = await engine.run(facts.values);
     hits = events.map((e) => (e.params as { index: number }).index);
   } catch (e) {
-    throw new EngineError('ROUTING', `Evaluasi aturan gagal: ${e instanceof Error ? e.message : String(e)}`);
+    throw new EngineError('ROUTING', `Rule evaluation failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   return hits.length ? Math.min(...hits) : undefined;
 }
@@ -133,7 +133,7 @@ export function assertCompilable(definition: FlowDefinition): void {
       engine.addRule({ name: `cek-${i}`, conditions: compileConditions(when, types), event: { type: 'match' } });
     } catch (e) {
       if (e instanceof EngineError) throw e;
-      throw new EngineError('INVALID_DEFINITION', `Aturan tidak bisa dimuat: ${e instanceof Error ? e.message : String(e)}`);
+      throw new EngineError('INVALID_DEFINITION', `Rule could not be loaded: ${e instanceof Error ? e.message : String(e)}`);
     }
   });
 }

@@ -32,7 +32,7 @@ export async function simulate(
   now: Date = new Date(),
 ): Promise<SimulatedStep[]> {
   const requester = await directory.getUser(input.requesterId);
-  if (!requester) throw new EngineError('INVALID_DATA', `User ${input.requesterId} tidak ada di direktori`);
+  if (!requester) throw new EngineError('INVALID_DATA', `User ${input.requesterId} is not in the directory`);
   validateData(definition.fields, input.data);
   const facts = buildFacts(definition.fields, input.data, requester);
   const out: SimulatedStep[] = [];

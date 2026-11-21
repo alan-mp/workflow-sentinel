@@ -24,6 +24,6 @@ export interface EmailNotifier {
 /** Pengganti email untuk PoC: hanya mencatat ke log Worker. */
 export class LogEmailNotifier implements EmailNotifier {
   async send(message: { to: string; subject: string; body: string }) {
-    console.log(`[email] ke ${message.to}: ${message.subject}`);
+    console.log(`[email] to ${message.to}: ${message.subject}`);
   }
 }

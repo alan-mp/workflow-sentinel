@@ -54,13 +54,13 @@ export interface Result {
 
 async function requireUser(directory: Directory, id: string): Promise<User> {
   const user = await directory.getUser(id);
-  if (!user) throw new EngineError('FORBIDDEN', `User ${id} tidak ada di direktori`);
+  if (!user) throw new EngineError('FORBIDDEN', `User ${id} is not in the directory`);
   return user;
 }
 
 function requireVersion(state: RequestState, version: FlowVersion) {
   if (version.id !== state.flowVersionId) {
-    throw new EngineError('INVALID_STATE', 'Permintaan harus diproses dengan versi alur saat dibuat');
+    throw new EngineError('INVALID_STATE', 'A request must be processed with the flow version it was created under');
   }
 }
 
@@ -149,7 +149,7 @@ async function advance(state: RequestState, version: FlowVersion, ctx: EngineCon
   if (done) {
     // Tidak ada auto-approve: permintaan hanya selesai kalau ada manusia yang menyetujui.
     if (!Object.values(state.completedSteps).includes('approved')) {
-      throw new EngineError('ROUTING', 'Tidak ada langkah approval yang berlaku untuk permintaan ini');
+      throw new EngineError('ROUTING', 'No approval step applies to this request');
     }
     state.status = 'approved';
     events.push({ ...base, actor: { type: 'system' }, action: 'request_approved' });
@@ -164,7 +164,7 @@ export async function startRequest(
 ): Promise<Result> {
   const at = ctx.now.toISOString();
   if (version.status !== 'active' || !version.effectiveFrom || version.effectiveFrom > at) {
-    throw new EngineError('INVALID_STATE', 'Versi alur belum aktif atau belum berlaku');
+    throw new EngineError('INVALID_STATE', 'This flow version is not active or not yet in effect');
   }
   await requireUser(ctx.directory, input.requesterId);
   validateData(version.definition.fields, input.data);
@@ -213,15 +213,15 @@ export async function act(
   const state = structuredClone(current);
   const at = ctx.now.toISOString();
   if (state.status !== 'in_progress') {
-    throw new EngineError('INVALID_STATE', 'Permintaan tidak sedang menunggu approval');
+    throw new EngineError('INVALID_STATE', 'This request is not awaiting approval');
   }
   const task = state.tasks.find((t) => t.id === decision.taskId);
-  if (!task || task.status !== 'open') throw new EngineError('INVALID_STATE', 'Tugas approval tidak terbuka');
+  if (!task || task.status !== 'open') throw new EngineError('INVALID_STATE', 'This approval task is not open');
   await requireUser(ctx.directory, decision.actorId);
 
   // Pemisahan tugas: berlaku apa pun isi daftar approver atau delegasinya.
   if (decision.actorId === state.requesterId) {
-    throw new EngineError('SOD_VIOLATION', 'Pemohon tidak boleh memutuskan permintaannya sendiri');
+    throw new EngineError('SOD_VIOLATION', 'Requesters cannot decide their own request');
   }
   let onBehalfOf: string | undefined;
   let delegatedBy: string | undefined;
@@ -233,7 +233,7 @@ export async function act(
         d.startsAt <= at &&
         at < d.endsAt,
     );
-    if (!delegation) throw new EngineError('NOT_ASSIGNEE', 'Anda bukan approver untuk tugas ini');
+    if (!delegation) throw new EngineError('NOT_ASSIGNEE', 'You are not an approver for this task');
     onBehalfOf = delegation.fromUserId;
     if (delegation.createdBy && delegation.createdBy !== delegation.fromUserId) delegatedBy = delegation.createdBy;
   }
@@ -287,10 +287,10 @@ export async function resubmit(
 ): Promise<Result> {
   requireVersion(current, version);
   if (current.status !== 'revision_requested') {
-    throw new EngineError('INVALID_STATE', 'Permintaan tidak sedang menunggu revisi');
+    throw new EngineError('INVALID_STATE', 'This request is not awaiting revision');
   }
   if (input.actorId !== current.requesterId) {
-    throw new EngineError('FORBIDDEN', 'Hanya pemohon yang boleh mengirim ulang');
+    throw new EngineError('FORBIDDEN', 'Only the requester can resubmit this request');
   }
   validateData(version.definition.fields, input.data);
   const state = structuredClone(current);

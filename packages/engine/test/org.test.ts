@@ -38,12 +38,12 @@ describe('atasan dihitung dari struktur unit', () => {
     const vacant = withUnits((u) => delete unit(u, 'produksi_line').headUserId);
     const up = await superiorOf(user('u_budi'), at(vacant));
     expect(up.user.id).toBe('u_putra');
-    expect(up.basis).toMatch(/naik karena kepala Produksi Line kosong/);
+    expect(up.basis).toMatch(/escalated because head of Produksi Line is vacant/);
 
     const acting = withUnits((u) => Object.assign(unit(u, 'produksi_line'), { headUserId: undefined, actingHeadUserId: 'u_hadi', actingUntil: '2026-12-31T00:00:00.000Z' }));
     const plt = await superiorOf(user('u_budi'), at(acting));
     expect(plt.user.id).toBe('u_hadi');
-    expect(plt.basis).toMatch(/Plt kepala Produksi Line/);
+    expect(plt.basis).toMatch(/acting head of Produksi Line/);
 
     const expired = withUnits((u) => Object.assign(unit(u, 'produksi_line'), { headUserId: undefined, actingHeadUserId: 'u_hadi', actingUntil: '2026-11-30T00:00:00.000Z' }));
     expect((await superiorOf(user('u_budi'), at(expired))).user.id).toBe('u_putra');
@@ -60,7 +60,7 @@ describe('atasan dihitung dari struktur unit', () => {
     });
     const general = await superiorOf(user('u_budi'), at(directory, 'purchase'));
     expect(general.user.id).toBe('u_irfan');
-    expect(general.basis).toMatch(/pengecualian pelaporan: proyek ERP/);
+    expect(general.basis).toMatch(/reporting exception: proyek ERP/);
     expect((await superiorOf(user('u_budi'), at(directory, 'leave'))).user.id).toBe('u_hana');
     expect((await superiorOf(user('u_maya'), at(directory))).user.id).toBe('u_putra');
   });
@@ -76,12 +76,12 @@ describe('atasan dihitung dari struktur unit', () => {
 
   it('orang tanpa unit dan pohon yang berputar ditolak dengan pesan jelas', async () => {
     const lost = withUnits(() => {}, { users: users.map((u) => (u.id === 'u_budi' ? { ...u, unitId: undefined } : u)) });
-    await expect(superiorOf({ ...user('u_budi'), unitId: undefined }, at(lost))).rejects.toThrow(/belum ditempatkan/);
+    await expect(superiorOf({ ...user('u_budi'), unitId: undefined }, at(lost))).rejects.toThrow(/is not placed/);
     const loop = withUnits((u) => {
       unit(u, 'direksi').parentId = 'produksi_line';
       for (const x of u) delete x.headUserId;
     });
-    await expect(superiorOf(user('u_budi'), at(loop))).rejects.toThrow(/berputar/);
+    await expect(superiorOf(user('u_budi'), at(loop))).rejects.toThrow(/forms a loop/);
   });
 });
 
@@ -95,8 +95,8 @@ describe('aturan routing di atas struktur', () => {
       { id: 'r1', requesterId: 'u_budi', data: { leave_type: 'tahunan', start_date: '2026-12-10', end_date: '2026-12-11', days: 2 } },
       { directory: base, now: NOW },
     );
-    expect(state.tasks[0]).toMatchObject({ assignees: ['u_maya'], basis: 'kepala Produksi Line' });
-    expect(events.find((e) => e.action === 'task_created')?.detail?.basis).toBe('kepala Produksi Line');
+    expect(state.tasks[0]).toMatchObject({ assignees: ['u_maya'], basis: 'head of Produksi Line' });
+    expect(events.find((e) => e.action === 'task_created')?.detail?.basis).toBe('head of Produksi Line');
   });
 
   it('approver dari struktur tidak mengulang orang yang sudah menyetujui, selama masih ada atasan di atasnya', async () => {
@@ -112,7 +112,7 @@ describe('aturan routing di atas struktur', () => {
     expect(started.state.tasks[0]!.assignees).toEqual(['u_putra']);
     const next = await act(started.state, v, { actorId: 'u_putra', taskId: started.state.tasks[0]!.id, type: 'approve' }, ctx);
     expect(next.state.tasks[1]!.assignees).toEqual(['u_dewi']);
-    expect(next.state.tasks[1]!.basis).toMatch(/naik karena Putra .* sudah menyetujui tahap sebelumnya/);
+    expect(next.state.tasks[1]!.basis).toMatch(/escalated because Putra .* already approved an earlier step/);
     const sim = await simulate(def, { requesterId: 'u_budi', data: {} }, directory, NOW);
     expect(sim.map((s) => s.userIds)).toEqual([['u_putra'], ['u_dewi']]);
   });
@@ -126,7 +126,7 @@ describe('aturan routing di atas struktur', () => {
     const def = flow([{ type: 'approval', id: 'hrbp', name: 'HRBP', approver: { kind: 'role', role: 'hrbp' } }]);
     expect((await simulate(def, { requesterId: 'u_budi', data: {} }, directory, NOW))[0]?.userIds).toEqual(['u_hana']);
     expect((await simulate(def, { requesterId: 'u_hadi', data: {} }, directory, NOW))[0]?.userIds).toEqual(['u_sari']);
-    expect((await simulate(def, { requesterId: 'u_pandu', data: {} }, directory, NOW))[0]?.error).toMatch(/Tidak ada pemegang wewenang hrbp/);
+    expect((await simulate(def, { requesterId: 'u_pandu', data: {} }, directory, NOW))[0]?.error).toMatch(/No holder of authority hrbp/);
   });
 
   it('tugas terbuka mengikuti struktur: pindah saat kepala unit diganti, dan tercatat', async () => {

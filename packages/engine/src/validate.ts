@@ -42,7 +42,7 @@ export function validateDefinition(input: unknown): ValidationResult {
 
   const fieldTypes = new Map<string, Field['type']>(Object.entries(BUILTIN_FIELDS));
   for (const f of def.fields) {
-    if (fieldTypes.has(f.key)) err('DUPLICATE_FIELD', `Field ganda: ${f.key}`);
+    if (fieldTypes.has(f.key)) err('DUPLICATE_FIELD', `Duplicate field: ${f.key}`);
     fieldTypes.set(f.key, f.type);
   }
 
@@ -50,24 +50,24 @@ export function validateDefinition(input: unknown): ValidationResult {
     for (const c of conds) {
       const type = fieldTypes.get(c.field);
       if (!type) {
-        err('UNKNOWN_FIELD', `${where}: field ${c.field} tidak ada`);
+        err('UNKNOWN_FIELD', `${where}: field ${c.field} does not exist`);
         continue;
       }
       const ordered = ['gt', 'gte', 'lt', 'lte'].includes(c.op);
       if (ordered && type !== 'number' && type !== 'date') {
-        err('BAD_OPERATOR', `${where}: operator ${c.op} hanya untuk angka atau tanggal (${c.field})`);
+        err('BAD_OPERATOR', `${where}: operator ${c.op} works only with numbers or dates (${c.field})`);
       }
       if ((c.op === 'in') !== Array.isArray(c.value)) {
-        err('BAD_VALUE', `${where}: operator "in" memakai daftar nilai, operator lain satu nilai (${c.field})`);
+        err('BAD_VALUE', `${where}: operator "in" takes a list of values, other operators take a single value (${c.field})`);
         continue;
       }
       const expected = type === 'date' ? 'string' : type;
       const values = Array.isArray(c.value) ? c.value : [c.value];
       if (values.some((v) => typeof v !== expected)) {
-        err('BAD_VALUE', `${where}: nilai untuk ${c.field} harus bertipe ${type}`);
+        err('BAD_VALUE', `${where}: value for ${c.field} must be of type ${type}`);
       }
       if (type === 'date' && values.some((v) => typeof v === 'string' && Number.isNaN(Date.parse(v)))) {
-        err('BAD_VALUE', `${where}: nilai untuk ${c.field} harus tanggal yang valid (contoh 2026-12-31)`);
+        err('BAD_VALUE', `${where}: value for ${c.field} must be a valid date (for example 2026-12-31)`);
       }
     }
   };
@@ -76,34 +76,34 @@ export function validateDefinition(input: unknown): ValidationResult {
   /** Tabel yang punya baris "none", sehingga langkahnya bisa dilewati. */
   const skippableTables = new Set<string>();
   for (const t of def.tables) {
-    if (tableIds.has(t.id)) err('DUPLICATE_TABLE', `Tabel ganda: ${t.id}`);
+    if (tableIds.has(t.id)) err('DUPLICATE_TABLE', `Duplicate rule table: ${t.id}`);
     tableIds.add(t.id);
     const rowIds = new Set<string>();
     t.rows.forEach((r, i) => {
-      if (rowIds.has(r.id)) err('DUPLICATE_ROW', `Tabel ${t.id}: baris ganda ${r.id}`);
+      if (rowIds.has(r.id)) err('DUPLICATE_ROW', `Rule table ${t.id}: duplicate row ${r.id}`);
       rowIds.add(r.id);
-      checkConditions(r.when, `Tabel ${t.id} baris ${r.id}`);
+      checkConditions(r.when, `Rule table ${t.id} row ${r.id}`);
       if (r.approver.kind === 'none') skippableTables.add(t.id);
       if (r.when.length === 0 && i < t.rows.length - 1) {
-        warn('UNREACHABLE_ROW', `Tabel ${t.id}: baris setelah ${r.id} tidak akan pernah dipakai`);
+        warn('UNREACHABLE_ROW', `Rule table ${t.id}: rows after ${r.id} will never be used`);
       }
     });
     if (t.rows[t.rows.length - 1]!.when.length > 0) {
-      err('TABLE_NO_DEFAULT', `Tabel ${t.id}: baris terakhir harus baris default (tanpa kondisi)`);
+      err('TABLE_NO_DEFAULT', `Rule table ${t.id}: the last row must be the default row (no conditions)`);
     }
   }
 
   const stepIds = new Set<string>();
   const visit = (steps: Step[]) => {
     for (const s of steps) {
-      if (stepIds.has(s.id)) err('DUPLICATE_STEP', `Langkah ganda: ${s.id}`);
+      if (stepIds.has(s.id)) err('DUPLICATE_STEP', `Duplicate step: ${s.id}`);
       stepIds.add(s.id);
       if (s.type === 'approval' && s.approver.kind === 'table' && !tableIds.has(s.approver.tableId)) {
-        err('UNKNOWN_TABLE', `Langkah ${s.id}: tabel ${s.approver.tableId} tidak ada`);
+        err('UNKNOWN_TABLE', `Step ${s.id}: rule table ${s.approver.tableId} does not exist`);
       }
       if (s.type === 'condition') {
         s.branches.forEach((b) => {
-          checkConditions(b.when, `Langkah ${s.id}`);
+          checkConditions(b.when, `Step ${s.id}`);
           visit(b.steps);
         });
         visit(s.otherwise);
@@ -128,7 +128,7 @@ export function validateDefinition(input: unknown): ValidationResult {
       }
     });
   if (!guaranteed(def.steps)) {
-    err('PATH_WITHOUT_APPROVAL', 'Ada jalur yang bisa selesai tanpa approval manusia');
+    err('PATH_WITHOUT_APPROVAL', 'At least one path can finish without a human approval');
   }
 
   const ok = !issues.some((i) => i.level === 'error');

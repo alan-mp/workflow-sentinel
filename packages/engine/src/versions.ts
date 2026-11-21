@@ -38,7 +38,7 @@ export function editDraft(
   changes: { definition?: FlowDefinition; sopUrl?: string },
 ): FlowVersion {
   if (version.status !== 'draft') {
-    throw new EngineError('INVALID_STATE', 'Versi yang sudah aktif tidak bisa diubah');
+    throw new EngineError('INVALID_STATE', 'An active version cannot be edited');
   }
   return {
     ...version,
@@ -53,19 +53,21 @@ export function editDraft(
  */
 export function activateVersion(
   version: FlowVersion,
-  input: { actor: Actor; effectiveFrom: string; now: Date },
+  input: { actor: Actor; effectiveFrom: string; now: Date; adminOverride?: boolean },
 ): { version: FlowVersion; events: AuditEvent[] } {
   const { actor, effectiveFrom, now } = input;
+  // Admin sistem boleh mengaktifkan draf yang ia susun sendiri; pengecualian ini selalu tercatat di audit.
+  const selfActivated = version.editedBy.includes(actor.type === 'user' ? actor.id : '');
   if (actor.type !== 'user') {
-    throw new EngineError('FORBIDDEN', 'Hanya manusia yang boleh mengaktifkan alur');
+    throw new EngineError('FORBIDDEN', 'Only a person can activate a flow');
   }
-  if (version.status !== 'draft') throw new EngineError('INVALID_STATE', 'Versi ini sudah aktif');
-  if (version.editedBy.includes(actor.id)) {
-    throw new EngineError('SOD_VIOLATION', 'Penyusun draf tidak boleh mengaktifkan drafnya sendiri');
+  if (version.status !== 'draft') throw new EngineError('INVALID_STATE', 'This version is already active');
+  if (selfActivated && !input.adminOverride) {
+    throw new EngineError('SOD_VIOLATION', 'Draft authors cannot activate their own draft');
   }
-  if (!version.sopUrl) throw new EngineError('INVALID_DEFINITION', 'Tautan SOP sumber belum diisi');
+  if (!version.sopUrl) throw new EngineError('INVALID_DEFINITION', 'Add the source SOP link before activating');
   if (Number.isNaN(Date.parse(effectiveFrom))) {
-    throw new EngineError('INVALID_DEFINITION', 'Tanggal berlaku tidak valid');
+    throw new EngineError('INVALID_DEFINITION', 'Effective date is not valid');
   }
   const result = validateDefinition(version.definition);
   if (!result.ok) {
@@ -82,7 +84,7 @@ export function activateVersion(
         actor,
         action: 'version_activated',
         flowVersionId: version.id,
-        detail: { effectiveFrom, sopUrl: version.sopUrl, editedBy: version.editedBy },
+        detail: { effectiveFrom, sopUrl: version.sopUrl, editedBy: version.editedBy, ...(selfActivated ? { adminOverride: true } : {}) },
       },
     ],
   };

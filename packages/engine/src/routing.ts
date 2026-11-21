@@ -6,12 +6,12 @@ import { EngineError, type Directory, type User } from './types';
 export function validateData(fields: Field[], data: Record<string, unknown>): void {
   const known = new Set(fields.map((f) => f.key));
   for (const key of Object.keys(data)) {
-    if (!known.has(key)) throw new EngineError('INVALID_DATA', `Field tidak dikenal: ${key}`);
+    if (!known.has(key)) throw new EngineError('INVALID_DATA', `Unknown field: ${key}`);
   }
   for (const f of fields) {
     const v = data[f.key];
     if (v === undefined || v === null) {
-      if (!f.optional) throw new EngineError('INVALID_DATA', `Field wajib kosong: ${f.key}`);
+      if (!f.optional) throw new EngineError('INVALID_DATA', `Required field is empty: ${f.key}`);
       continue;
     }
     const ok =
@@ -20,7 +20,7 @@ export function validateData(fields: Field[], data: Record<string, unknown>): vo
         : f.type === 'number'
           ? typeof v === 'number' && Number.isFinite(v)
           : typeof v === f.type;
-    if (!ok) throw new EngineError('INVALID_DATA', `Field ${f.key} harus bertipe ${f.type}`);
+    if (!ok) throw new EngineError('INVALID_DATA', `Field ${f.key} must be of type ${f.type}`);
   }
 }
 
@@ -71,14 +71,14 @@ async function resolveCandidates(spec: DirectApprover, requester: User, ctx: Org
         if (h.scopeUnitId && !(await withinUnit(requester.unitId, h.scopeUnitId, ctx.directory))) continue;
         if ((await ctx.directory.getUser(h.userId)) && !ids.includes(h.userId)) ids.push(h.userId);
       }
-      if (ids.length === 0) throw new EngineError('ROUTING', `Tidak ada pemegang wewenang ${spec.role} untuk unit pemohon`);
-      return { ids, basis: `pemegang wewenang ${spec.role}`, structural: false };
+      if (ids.length === 0) throw new EngineError('ROUTING', `No holder of authority ${spec.role} for the requester's unit`);
+      return { ids, basis: `holder of authority ${spec.role}`, structural: false };
     }
     case 'user': {
       if (!(await ctx.directory.getUser(spec.userId))) {
-        throw new EngineError('ROUTING', `User ${spec.userId} tidak ditemukan`);
+        throw new EngineError('ROUTING', `User ${spec.userId} not found`);
       }
-      return { ids: [spec.userId], basis: 'ditunjuk langsung di alur', structural: false };
+      return { ids: [spec.userId], basis: 'named directly in the flow', structural: false };
     }
   }
 }
@@ -106,10 +106,10 @@ export async function resolveApprovers(spec: ApproverSpec, input: ResolveInput):
 
   if (spec.kind === 'table') {
     const table = definition.tables.find((t) => t.id === spec.tableId);
-    if (!table) throw new EngineError('ROUTING', `Tabel aturan ${spec.tableId} tidak ada`);
+    if (!table) throw new EngineError('ROUTING', `Rule table ${spec.tableId} does not exist`);
     const hit = await firstMatch(table.rows, facts);
     const row = hit === undefined ? undefined : table.rows[hit];
-    if (!row) throw new EngineError('ROUTING', `Tidak ada baris yang cocok di tabel ${table.id}`);
+    if (!row) throw new EngineError('ROUTING', `No matching row in rule table ${table.id}`);
     tableRow = { tableId: table.id, rowId: row.id };
     if (row.approver.kind === 'none') {
       return { assignees: [], skipped: true, tableRow, requesterExcluded: false, reroutedToManager: false };
@@ -125,7 +125,7 @@ export async function resolveApprovers(spec: ApproverSpec, input: ResolveInput):
     try {
       const higher = await resolveCandidates(direct, requester, ctx, input.alreadyApproved);
       const name = (await directory.getUser(repeated))?.name ?? repeated;
-      found = { ...higher, basis: `${higher.basis}; naik karena ${name} sudah menyetujui tahap sebelumnya` };
+      found = { ...higher, basis: `${higher.basis}; escalated because ${name} already approved an earlier step` };
     } catch (e) {
       // Tidak ada lagi atasan di atasnya: orang yang sama tetap menjadi approver.
       if (!(e instanceof EngineError)) throw e;
@@ -144,7 +144,7 @@ export async function resolveApprovers(spec: ApproverSpec, input: ResolveInput):
     tableRow,
     requesterExcluded: true,
     reroutedToManager: true,
-    basis: `${manager.basis}; dialihkan karena pemohon satu-satunya ${found.basis}`,
+    basis: `${manager.basis}; reassigned because the requester is the only ${found.basis}`,
   };
 }
 

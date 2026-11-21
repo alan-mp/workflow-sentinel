@@ -48,7 +48,7 @@ When nothing is blocking, call propose_draft with the complete definition. For e
 
 Approvers are referenced by role name, by management level above the requester, or through a rule table. Use role names from the provided list. If the SOP names a role that is not in the list, use a sensible snake_case name and tell the admin that this role must exist in the directory before the flow can run.
 
-Reply to the admin in Indonesian, briefly and plainly.
+Reply to the admin in English, briefly and plainly.
 
 ## Definition format (JSON)
 
@@ -116,7 +116,7 @@ export class ClaudeDrafter implements AiDrafter {
     const context = [
       `<current_draft>\n${JSON.stringify(input.definition, null, 2)}\n</current_draft>`,
       `<available_roles>${input.roles.join(', ')}</available_roles>`,
-      input.sopText ? `<sop>\n${input.sopText}\n</sop>` : '<sop>(belum ada SOP yang diunggah)</sop>',
+      input.sopText ? `<sop>\n${input.sopText}\n</sop>` : '<sop>(no SOP uploaded yet)</sop>',
     ].join('\n\n');
     const messages: Anthropic.Beta.BetaMessageParam[] = [
       ...input.history.map((m) => ({ role: m.role, content: m.content })),
@@ -138,10 +138,10 @@ export class ClaudeDrafter implements AiDrafter {
       });
 
       if (response.stop_reason === 'refusal') {
-        return { reply: 'AI menolak memproses permintaan ini. Coba ubah kalimatnya, atau edit alur lewat editor visual.', draft };
+        return { reply: 'The AI declined to process this request. Try rephrasing it, or edit the flow in the visual editor.', draft };
       }
       if (response.stop_reason === 'max_tokens') {
-        return { reply: 'Jawaban AI terpotong karena terlalu panjang. Coba minta perubahan yang lebih kecil.', draft };
+        return { reply: 'The AI response was cut off because it was too long. Try asking for a smaller change.', draft };
       }
       const calls = response.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use');
       if (calls.length === 0) return { reply: textOf(response.content), draft };
@@ -161,14 +161,41 @@ export class ClaudeDrafter implements AiDrafter {
     }
     return {
       reply: draft
-        ? 'Draf sudah diperbarui. Silakan periksa di editor.'
-        : 'Saya belum berhasil menyusun draf yang lolos validasi. Coba jelaskan aturannya lebih rinci.',
+        ? 'The draft has been updated. Review it in the editor.'
+        : 'I could not produce a draft that passes validation. Try describing the rules in more detail.',
       draft,
     };
   }
 }
 
+/**
+ * Preferred setup: the Worker's AI binding plus AI Gateway Unified Billing. Requests go
+ * through the binding, which is already authenticated, and carry no provider key, so the
+ * Worker holds no secret at all; Cloudflare bills the usage to the account's credits.
+ */
+function bindingClient(ai: Ai, gatewayId: string): Anthropic {
+  const gateway = ai.gateway(gatewayId);
+  return new Anthropic({
+    // The SDK insists on a key; it is stripped below and never leaves the Worker.
+    apiKey: 'unified-billing',
+    baseURL: 'https://ai-gateway.binding',
+    fetch: async (input, init) => {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input.toString() : input.url);
+      const headers: Record<string, string> = {};
+      new Headers(init?.headers).forEach((value, key) => {
+        if (key !== 'x-api-key' && key !== 'authorization') headers[key] = value;
+      });
+      return gateway.run(
+        { provider: 'anthropic', endpoint: `${url.pathname.replace(/^\//, '')}${url.search}`, headers, query: typeof init?.body === 'string' ? JSON.parse(init.body) : {} },
+        { signal: init?.signal ?? undefined },
+      );
+    },
+  });
+}
+
 export function drafterFromEnv(env: Env): AiDrafter | null {
+  if (env.AI && env.AI_GATEWAY_ID) return new ClaudeDrafter(bindingClient(env.AI, env.AI_GATEWAY_ID));
+  // Alternative: gateway URL with the Anthropic key held as a Worker secret.
   if (!env.AI_GATEWAY_URL || !env.ANTHROPIC_API_KEY) return null;
   return new ClaudeDrafter(
     new Anthropic({

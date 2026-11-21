@@ -41,27 +41,27 @@ async function climb(start: OrgUnit, exclude: Set<string>, ctx: OrgContext, subj
   let unit: OrgUnit | undefined = start;
   while (unit) {
     if (seen.has(unit.id) || seen.size >= MAX_DEPTH) {
-      throw new EngineError('ROUTING', `Struktur unit berputar di sekitar ${unit.name}`);
+      throw new EngineError('ROUTING', `Unit structure forms a loop around ${unit.name}`);
     }
     seen.add(unit.id);
     const head = effectiveHead(unit, ctx.now);
-    if (!head) notes.push(`kepala ${unit.name} kosong`);
+    if (!head) notes.push(`head of ${unit.name} is vacant`);
     else if (!exclude.has(head.userId)) {
       const user = await ctx.directory.getUser(head.userId);
       if (user) {
-        const role = `${head.acting ? 'Plt kepala' : 'kepala'} ${unit.name}`;
-        return { user, basis: notes.length ? `${role}; naik karena ${notes.join(', ')}` : role };
+        const role = `${head.acting ? 'acting head of' : 'head of'} ${unit.name}`;
+        return { user, basis: notes.length ? `${role}; escalated because ${notes.join(', ')}` : role };
       }
-      notes.push(`kepala ${unit.name} tidak ada di direktori`);
+      notes.push(`head of ${unit.name} is not in the directory`);
     }
     unit = unit.parentId ? await ctx.directory.getUnit(unit.parentId) : undefined;
   }
-  throw new EngineError('ROUTING', `Tidak ada atasan di atas ${subject}${notes.length ? ` (${notes.join(', ')})` : ''}`);
+  throw new EngineError('ROUTING', `No superior above ${subject}${notes.length ? ` (${notes.join(', ')})` : ''}`);
 }
 
 async function unitOf(user: User, directory: Directory): Promise<OrgUnit> {
   const unit = user.unitId ? await directory.getUnit(user.unitId) : undefined;
-  if (!unit) throw new EngineError('ROUTING', `${user.name} belum ditempatkan di unit organisasi`);
+  if (!unit) throw new EngineError('ROUTING', `${user.name} is not placed in an organizational unit`);
   return unit;
 }
 
@@ -76,7 +76,7 @@ export async function superiorOf(person: User, ctx: OrgContext, exclude: Iterabl
   const exception = active.find((e) => e.flowKey) ?? active[0];
   if (exception && !skip.has(exception.toUserId)) {
     const user = await ctx.directory.getUser(exception.toUserId);
-    if (user) return { user, basis: `pengecualian pelaporan: ${exception.reason}` };
+    if (user) return { user, basis: `reporting exception: ${exception.reason}` };
   }
   return climb(await unitOf(person, ctx.directory), skip, ctx, person.name);
 }
@@ -89,7 +89,7 @@ export async function superiorAt(person: User, level: number, ctx: OrgContext, e
     current = await superiorOf(current.user, ctx, [person.id, ...skip]);
     skip.add(current.user.id);
   }
-  return level > 1 ? { user: current.user, basis: `atasan tingkat ${level}: ${current.basis}` } : current;
+  return level > 1 ? { user: current.user, basis: `superior ${level} levels up: ${current.basis}` } : current;
 }
 
 /**
@@ -101,12 +101,12 @@ export async function unitHeadAt(person: User, level: UnitLevel, ctx: OrgContext
   let unit: OrgUnit | undefined = await unitOf(person, ctx.directory);
   const seen = new Set<string>();
   while (unit && UNIT_LEVELS.indexOf(unit.level) > target) {
-    if (seen.has(unit.id) || seen.size >= MAX_DEPTH) throw new EngineError('ROUTING', `Struktur unit berputar di sekitar ${unit.name}`);
+    if (seen.has(unit.id) || seen.size >= MAX_DEPTH) throw new EngineError('ROUTING', `Unit structure forms a loop around ${unit.name}`);
     seen.add(unit.id);
     unit = unit.parentId ? await ctx.directory.getUnit(unit.parentId) : undefined;
   }
   if (!unit) {
-    throw new EngineError('ROUTING', `${person.name} tidak berada di bawah unit tingkat ${UNIT_LEVEL_LABEL[level]} atau di atasnya`);
+    throw new EngineError('ROUTING', `${person.name} is not in a unit at ${UNIT_LEVEL_LABEL[level]} level or above`);
   }
   return climb(unit, new Set([person.id, ...exclude]), ctx, person.name);
 }
@@ -152,42 +152,42 @@ export function orgFindings(snapshot: DirectorySnapshot, now: Date, authorityIds
   const at = now.toISOString();
   for (const unit of units.values()) {
     if (unit.parentId && !units.has(unit.parentId)) {
-      out.push({ level: 'error', code: 'UNIT_BAD_PARENT', unitId: unit.id, message: `${unit.name}: unit induk tidak ditemukan` });
+      out.push({ level: 'error', code: 'UNIT_BAD_PARENT', unitId: unit.id, message: `${unit.name}: parent unit not found` });
     }
     const seen = new Set<string>();
     for (let u: OrgUnit | undefined = unit; u; u = u.parentId ? units.get(u.parentId) : undefined) {
       if (seen.has(u.id)) {
-        out.push({ level: 'error', code: 'UNIT_CYCLE', unitId: unit.id, message: `${unit.name}: susunan unit induknya berputar` });
+        out.push({ level: 'error', code: 'UNIT_CYCLE', unitId: unit.id, message: `${unit.name}: its parent units form a loop` });
         break;
       }
       seen.add(u.id);
     }
     const head = effectiveHead(unit, now);
     if (head && !users.has(head.userId)) {
-      out.push({ level: 'error', code: 'HEAD_UNKNOWN', unitId: unit.id, message: `${unit.name}: kepalanya tidak ada di daftar karyawan` });
+      out.push({ level: 'error', code: 'HEAD_UNKNOWN', unitId: unit.id, message: `${unit.name}: its head is not in the people list` });
     } else if (!head && unit.actingHeadUserId) {
-      out.push({ level: 'error', code: 'ACTING_EXPIRED', unitId: unit.id, message: `${unit.name}: masa Plt kepala sudah lewat, unit tanpa kepala` });
+      out.push({ level: 'error', code: 'ACTING_EXPIRED', unitId: unit.id, message: `${unit.name}: acting head's term has ended, the unit has no head` });
     } else if (!head) {
-      out.push({ level: unit.parentId ? 'warning' : 'error', code: 'UNIT_NO_HEAD', unitId: unit.id, message: `${unit.name}: belum ada kepala, approval naik ke unit di atasnya` });
+      out.push({ level: unit.parentId ? 'warning' : 'error', code: 'UNIT_NO_HEAD', unitId: unit.id, message: `${unit.name}: no head, approvals escalate to the unit above` });
     } else if (head.acting) {
-      out.push({ level: 'warning', code: 'ACTING_HEAD', unitId: unit.id, message: `${unit.name}: dipimpin Plt${unit.actingUntil ? ` sampai ${unit.actingUntil.slice(0, 10)}` : ''}` });
+      out.push({ level: 'warning', code: 'ACTING_HEAD', unitId: unit.id, message: `${unit.name}: led by an acting head${unit.actingUntil ? ` until ${unit.actingUntil.slice(0, 10)}` : ''}` });
     }
   }
   for (const user of snapshot.users) {
     if (!user.unitId || !units.has(user.unitId)) {
-      out.push({ level: 'error', code: 'USER_NO_UNIT', userId: user.id, message: `${user.name}: belum ditempatkan di unit, tidak punya jalur approval` });
+      out.push({ level: 'error', code: 'USER_NO_UNIT', userId: user.id, message: `${user.name}: not placed in a unit, so has no approval path` });
     }
   }
   for (const e of snapshot.exceptions ?? []) {
     if (e.startsAt <= at && at < e.endsAt && Date.parse(e.endsAt) - now.getTime() < 14 * DAY) {
-      out.push({ level: 'warning', code: 'EXCEPTION_EXPIRING', userId: e.userId, message: `Pengecualian pelaporan ${users.get(e.userId)?.name ?? e.userId} berakhir ${e.endsAt.slice(0, 10)}` });
+      out.push({ level: 'warning', code: 'EXCEPTION_EXPIRING', userId: e.userId, message: `Reporting exception for ${users.get(e.userId)?.name ?? e.userId} ends ${e.endsAt.slice(0, 10)}` });
     }
   }
   for (const id of new Set([...authorityIds, ...Object.keys(snapshot.holders ?? {})])) {
     const holders = (snapshot.holders?.[id] ?? []).filter((h) => users.has(h.userId));
     const label = authorityNames[id] ?? id;
-    if (holders.length === 0) out.push({ level: 'error', code: 'AUTHORITY_NO_HOLDER', authorityId: id, message: `Wewenang ${label}: tidak ada pemegang` });
-    else if (holders.length === 1) out.push({ level: 'warning', code: 'AUTHORITY_SINGLE_HOLDER', authorityId: id, message: `Wewenang ${label}: hanya satu pemegang, tidak ada pengganti` });
+    if (holders.length === 0) out.push({ level: 'error', code: 'AUTHORITY_NO_HOLDER', authorityId: id, message: `Authority ${label}: no holder` });
+    else if (holders.length === 1) out.push({ level: 'warning', code: 'AUTHORITY_SINGLE_HOLDER', authorityId: id, message: `Authority ${label}: only one holder, no backup` });
   }
   return out;
 }

@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Definisi alur = langkah (diagram) + tabel aturan routing. Seluruhnya data,
 // disimpan sebagai JSON berversi. Chat dan editor visual mengedit objek ini.
 
-const Id = z.string().regex(/^[a-z0-9_]+$/, 'hanya huruf kecil, angka, dan _');
+const Id = z.string().regex(/^[a-z0-9_]+$/, 'must contain only lowercase letters, digits, and underscores');
 
 export const FieldSchema = z
   .object({
@@ -37,11 +37,11 @@ const UserApprover = z.object({ kind: z.literal('user'), userId: z.string().min(
 export const UNIT_LEVELS = ['direksi', 'divisi', 'departemen', 'unit', 'seksi'] as const;
 export type UnitLevel = (typeof UNIT_LEVELS)[number];
 export const UNIT_LEVEL_LABEL: Record<UnitLevel, string> = {
-  direksi: 'Direksi',
-  divisi: 'Divisi',
-  departemen: 'Departemen',
+  direksi: 'Board',
+  divisi: 'Division',
+  departemen: 'Department',
   unit: 'Unit',
-  seksi: 'Seksi',
+  seksi: 'Section',
 };
 /** Kepala unit pemohon pada tingkat tertentu (atau tingkat terdekat di atasnya). */
 const UnitHeadApprover = z.object({ kind: z.literal('unit_head'), level: z.enum(UNIT_LEVELS) }).strict();

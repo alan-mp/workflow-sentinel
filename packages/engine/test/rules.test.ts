@@ -106,7 +106,7 @@ describe('evaluasi aturan oleh json-rules-engine', () => {
   it('menolak fakta bertipe salah alih-alih membandingkannya', () => {
     expect(() => facts({ amount: '5', category: 'atk' })).toThrowError(EngineError);
     expect(() => facts({ amount: Number.NaN, category: 'atk' })).toThrowError(EngineError);
-    expect(() => facts({ amount: 1, category: 'atk', needed_by: 'besok' })).toThrowError(/tanggal/);
+    expect(() => facts({ amount: 1, category: 'atk', needed_by: 'besok' })).toThrowError(/valid date/);
   });
 
   it('gagal-aman: kondisi yang merujuk field tak dikenal menghentikan routing', async () => {

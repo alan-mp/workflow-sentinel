@@ -93,16 +93,16 @@ describe('pemisahan tugas pada aktivasi alur', () => {
     activateVersion(v, { actor, effectiveFrom: '2026-12-15T00:00:00.000Z', now: NOW });
 
   it('penyusun draf tidak bisa mengaktifkan drafnya sendiri', () => {
-    expect(() => activate(draft(), { type: 'user', id: 'u_hana' })).toThrowError(/Penyusun draf/);
+    expect(() => activate(draft(), { type: 'user', id: 'u_hana' })).toThrowError(/Draft authors/);
   });
 
   it('siapa pun yang pernah mengedit draf juga tidak bisa', () => {
     const edited = editDraft(draft(), 'u_fajar', { definition: definition('purchase') });
-    expect(() => activate(edited, { type: 'user', id: 'u_fajar' })).toThrowError(/Penyusun draf/);
+    expect(() => activate(edited, { type: 'user', id: 'u_fajar' })).toThrowError(/Draft authors/);
   });
 
   it('AI tidak pernah bisa mengaktifkan', () => {
-    expect(() => activate(draft(), { type: 'ai', id: 'chat' })).toThrowError(/Hanya manusia/);
+    expect(() => activate(draft(), { type: 'ai', id: 'chat' })).toThrowError(/Only a person/);
   });
 
   it('orang kedua bisa; versi menyimpan tanggal berlaku dan tautan SOP', () => {
@@ -120,12 +120,12 @@ describe('pemisahan tugas pada aktivasi alur', () => {
     expect(() => activate(noSop, { type: 'user', id: 'u_dewi' })).toThrowError(/SOP/);
     const broken = draft();
     broken.definition.steps.shift();
-    expect(() => activate(broken, { type: 'user', id: 'u_dewi' })).toThrowError(/tanpa approval/);
+    expect(() => activate(broken, { type: 'user', id: 'u_dewi' })).toThrowError(/without a human approval/);
   });
 
   it('versi aktif tidak bisa diubah, dan belum dipakai sebelum tanggal berlaku', async () => {
     const { version } = activate(draft(), { type: 'user', id: 'u_dewi' });
-    expect(() => editDraft(version, 'u_hana', {})).toThrowError(/tidak bisa diubah/);
+    expect(() => editDraft(version, 'u_hana', {})).toThrowError(/cannot be edited/);
     await expect(
       startRequest(version, { id: 'r1', requesterId: 'u_budi', data: purchase }, ctx),
     ).rejects.toMatchObject({ code: 'INVALID_STATE' });

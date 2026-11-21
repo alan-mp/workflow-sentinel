@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono';
 import {
   InMemoryDirectory,
   UNIT_LEVELS,
+  UNIT_LEVEL_LABEL,
   coverageGaps,
   flattenSteps,
   orgFindings,
@@ -65,22 +66,22 @@ function withIds(change: OrgChange, org: OrgData): OrgChange {
 /** Menerapkan usulan pada potret struktur tanpa menyentuh database; melempar ChangeError kalau tidak sah. */
 export function applyToSnapshot(org: OrgData, change: OrgChange, now: Date): OrgData {
   const next: OrgData = structuredClone(org);
-  const unit = (id: string) => next.units.find((u) => u.id === id) ?? fail(`Unit ${id} tidak ditemukan`);
-  const user = (id: string) => next.users.find((u) => u.id === id) ?? fail(`Karyawan ${id} tidak ditemukan`);
+  const unit = (id: string) => next.units.find((u) => u.id === id) ?? fail(`Unit ${id} not found`);
+  const user = (id: string) => next.users.find((u) => u.id === id) ?? fail(`Person ${id} not found`);
   const rank = (level: string) => UNIT_LEVELS.indexOf(level as UnitLevel);
 
   switch (change.kind) {
     case 'unit_upsert': {
-      if (!change.name.trim()) fail('Nama unit wajib diisi');
-      if (rank(change.level) < 0) fail('Tingkat unit tidak dikenal');
+      if (!change.name.trim()) fail('Unit name is required');
+      if (rank(change.level) < 0) fail('Unknown unit level');
       const parent = change.parentId ? unit(change.parentId) : undefined;
-      if (parent && parent.id === change.id) fail('Unit tidak bisa menjadi induk dirinya sendiri');
+      if (parent && parent.id === change.id) fail('A unit cannot be its own parent');
       if (parent && rank(parent.level) >= rank(change.level)) {
-        fail(`Tingkat ${change.level} harus berada di bawah induknya (${parent.name}, tingkat ${parent.level})`);
+        fail(`A ${UNIT_LEVEL_LABEL[change.level]}-level unit must be below its parent (${parent.name}, ${UNIT_LEVEL_LABEL[parent.level]} level)`);
       }
       const existing = next.units.find((u) => u.id === change.id);
       for (const child of next.units.filter((u) => u.parentId === change.id)) {
-        if (rank(child.level) <= rank(change.level)) fail(`Tingkat ${change.level} tidak boleh setara atau di bawah unit bawahannya (${child.name})`);
+        if (rank(child.level) <= rank(change.level)) fail(`A ${UNIT_LEVEL_LABEL[change.level]}-level unit cannot be at or below the level of a unit under it (${child.name})`);
       }
       if (existing) Object.assign(existing, { name: change.name.trim(), level: change.level, parentId: parent?.id });
       else next.units.push({ id: change.id!, name: change.name.trim(), level: change.level, parentId: parent?.id });
@@ -88,22 +89,22 @@ export function applyToSnapshot(org: OrgData, change: OrgChange, now: Date): Org
     }
     case 'unit_delete': {
       const u = unit(change.id);
-      if (next.units.some((x) => x.parentId === u.id)) fail(`${u.name} masih punya unit di bawahnya`);
-      if (next.users.some((x) => x.unitId === u.id)) fail(`${u.name} masih punya anggota`);
+      if (next.units.some((x) => x.parentId === u.id)) fail(`${u.name} still has units below it`);
+      if (next.users.some((x) => x.unitId === u.id)) fail(`${u.name} still has members`);
       next.units = next.units.filter((x) => x.id !== u.id);
       for (const holders of Object.values(next.holders)) {
-        if (holders.some((h) => h.scopeUnitId === u.id)) fail(`${u.name} masih dipakai sebagai cakupan wewenang`);
+        if (holders.some((h) => h.scopeUnitId === u.id)) fail(`${u.name} is still used as an authority scope`);
       }
       break;
     }
     case 'unit_head': {
       const u = unit(change.id);
       const head = change.headUserId ? user(change.headUserId) : undefined;
-      if (head && head.unitId !== u.id) fail(`${short(head.name)} belum ditempatkan di ${u.name}; kepala definitif harus anggota unitnya`);
+      if (head && head.unitId !== u.id) fail(`${short(head.name)} is not placed in ${u.name}; a permanent head must be a member of the unit`);
       const acting = change.actingHeadUserId ? user(change.actingHeadUserId) : undefined;
-      if (acting && head) fail('Plt hanya diisi kalau kepala definitif kosong');
-      if (acting && (!change.actingUntil || Number.isNaN(Date.parse(change.actingUntil)))) fail('Plt wajib punya tanggal berakhir');
-      if (acting && Date.parse(change.actingUntil!) <= now.getTime()) fail('Tanggal berakhir Plt sudah lewat');
+      if (acting && head) fail('An acting head can be set only when there is no permanent head');
+      if (acting && (!change.actingUntil || Number.isNaN(Date.parse(change.actingUntil)))) fail('An acting head needs an end date');
+      if (acting && Date.parse(change.actingUntil!) <= now.getTime()) fail("The acting head's end date has already passed");
       u.headUserId = head?.id;
       u.actingHeadUserId = acting?.id;
       u.actingUntil = acting ? new Date(change.actingUntil!).toISOString() : undefined;
@@ -113,7 +114,7 @@ export function applyToSnapshot(org: OrgData, change: OrgChange, now: Date): Org
       const person = user(change.userId);
       const target = unit(change.unitId);
       const heads = next.units.find((u) => u.headUserId === person.id && u.id !== target.id);
-      if (heads) fail(`${short(person.name)} masih kepala ${heads.name}; ganti kepalanya dulu`);
+      if (heads) fail(`${short(person.name)} is still head of ${heads.name}; change the head first`);
       person.unitId = target.id;
       person.title = change.title?.trim() || undefined;
       let dept = target;
@@ -127,12 +128,12 @@ export function applyToSnapshot(org: OrgData, change: OrgChange, now: Date): Org
     case 'exception_add': {
       const person = user(change.userId);
       const to = user(change.toUserId);
-      if (person.id === to.id) fail('Orang tidak bisa melapor ke dirinya sendiri');
-      if (!change.reason.trim()) fail('Alasan pengecualian wajib diisi');
+      if (person.id === to.id) fail('A person cannot report to themselves');
+      if (!change.reason.trim()) fail('A reason for the reporting exception is required');
       const starts = Date.parse(change.startsAt);
       const ends = Date.parse(change.endsAt);
-      if (Number.isNaN(starts) || Number.isNaN(ends) || ends <= starts) fail('Pengecualian wajib punya tanggal mulai dan berakhir yang sah');
-      if (ends - starts > MAX_EXCEPTION_DAYS * 86_400_000) fail('Pengecualian paling lama satu tahun; perpanjang lewat usulan baru');
+      if (Number.isNaN(starts) || Number.isNaN(ends) || ends <= starts) fail('A reporting exception needs valid start and end dates');
+      if (ends - starts > MAX_EXCEPTION_DAYS * 86_400_000) fail('A reporting exception can last at most one year; extend it with a new proposal');
       next.exceptions.push({
         id: change.id!,
         userId: person.id,
@@ -145,13 +146,13 @@ export function applyToSnapshot(org: OrgData, change: OrgChange, now: Date): Org
       break;
     }
     case 'exception_end': {
-      const e = next.exceptions.find((x) => x.id === change.id) ?? fail('Pengecualian tidak ditemukan');
+      const e = next.exceptions.find((x) => x.id === change.id) ?? fail('Reporting exception not found');
       e.endsAt = now.toISOString();
       break;
     }
     case 'authority_upsert': {
-      if (!/^[a-z0-9_]+$/.test(change.id)) fail('Kode wewenang hanya huruf kecil, angka, dan garis bawah');
-      if (!change.name.trim()) fail('Nama wewenang wajib diisi');
+      if (!/^[a-z0-9_]+$/.test(change.id)) fail('Authority code may contain only lowercase letters, digits, and underscores');
+      if (!change.name.trim()) fail('Authority name is required');
       const existing = next.authorities.find((a) => a.id === change.id);
       if (existing) Object.assign(existing, { name: change.name.trim(), description: change.description?.trim() ?? '' });
       else {
@@ -161,24 +162,24 @@ export function applyToSnapshot(org: OrgData, change: OrgChange, now: Date): Org
       break;
     }
     case 'authority_delete': {
-      if (!next.authorities.some((a) => a.id === change.id)) fail('Wewenang tidak ditemukan');
+      if (!next.authorities.some((a) => a.id === change.id)) fail('Authority not found');
       next.authorities = next.authorities.filter((a) => a.id !== change.id);
       delete next.holders[change.id];
       break;
     }
     case 'holder_add': {
-      if (!next.authorities.some((a) => a.id === change.authorityId)) fail('Wewenang tidak ditemukan');
+      if (!next.authorities.some((a) => a.id === change.authorityId)) fail('Authority not found');
       user(change.userId);
       if (change.scopeUnitId) unit(change.scopeUnitId);
       const list = (next.holders[change.authorityId] ??= []);
-      if (list.some((h) => h.userId === change.userId && (h.scopeUnitId ?? '') === (change.scopeUnitId ?? ''))) fail('Orang ini sudah memegang wewenang tersebut dengan cakupan yang sama');
+      if (list.some((h) => h.userId === change.userId && (h.scopeUnitId ?? '') === (change.scopeUnitId ?? ''))) fail('This person already holds that authority with the same scope');
       list.push({ userId: change.userId, scopeUnitId: change.scopeUnitId || undefined });
       break;
     }
     case 'holder_remove': {
-      const list = next.holders[change.authorityId] ?? fail('Wewenang tidak ditemukan');
+      const list = next.holders[change.authorityId] ?? fail('Authority not found');
       const kept = list.filter((h) => !(h.userId === change.userId && (h.scopeUnitId ?? '') === (change.scopeUnitId ?? '')));
-      if (kept.length === list.length) fail('Pemegang wewenang tidak ditemukan');
+      if (kept.length === list.length) fail('Holder of authority not found');
       next.holders[change.authorityId] = kept;
       break;
     }
@@ -199,32 +200,32 @@ export function describeChange(change: OrgChange, org: OrgData): string {
   switch (change.kind) {
     case 'unit_upsert':
       return org.units.some((u) => u.id === change.id)
-        ? `Ubah unit ${unit(change.id)}: nama ${change.name}, tingkat ${change.level}, induk ${change.parentId ? unit(change.parentId) : 'tidak ada'}`
-        : `Tambah unit ${change.name} (${change.level}) di bawah ${change.parentId ? unit(change.parentId) : 'puncak'}`;
+        ? `Change unit ${unit(change.id)}: name ${change.name}, level ${UNIT_LEVEL_LABEL[change.level] ?? change.level}, parent ${change.parentId ? unit(change.parentId) : 'none'}`
+        : `Add unit ${change.name} (${UNIT_LEVEL_LABEL[change.level] ?? change.level}) ${change.parentId ? `under ${unit(change.parentId)}` : 'at the top'}`;
     case 'unit_delete':
-      return `Hapus unit ${unit(change.id)}`;
+      return `Delete unit ${unit(change.id)}`;
     case 'unit_head':
       return change.headUserId
-        ? `Kepala ${unit(change.id)}: ${user(change.headUserId)}`
+        ? `Head of ${unit(change.id)}: ${user(change.headUserId)}`
         : change.actingHeadUserId
-          ? `Plt kepala ${unit(change.id)}: ${user(change.actingHeadUserId)} sampai ${String(change.actingUntil).slice(0, 10)}`
-          : `Kosongkan kepala ${unit(change.id)}`;
+          ? `Acting head of ${unit(change.id)}: ${user(change.actingHeadUserId)} until ${String(change.actingUntil).slice(0, 10)}`
+          : `Remove head of ${unit(change.id)}`;
     case 'user_place':
-      return `Tempatkan ${user(change.userId)} di ${unit(change.unitId)}${change.title ? ` sebagai ${change.title}` : ''}`;
+      return `Place ${user(change.userId)} in ${unit(change.unitId)}${change.title ? ` as ${change.title}` : ''}`;
     case 'exception_add':
-      return `Pengecualian: ${user(change.userId)} melapor ke ${user(change.toUserId)}${change.flowKey ? ` untuk alur ${change.flowKey}` : ''}, ${change.startsAt.slice(0, 10)} sampai ${change.endsAt.slice(0, 10)}. Alasan: ${change.reason}`;
+      return `Reporting exception: ${user(change.userId)} reports to ${user(change.toUserId)}${change.flowKey ? ` for flow ${change.flowKey}` : ''}, ${change.startsAt.slice(0, 10)} to ${change.endsAt.slice(0, 10)}. Reason: ${change.reason}`;
     case 'exception_end': {
       const e = org.exceptions.find((x) => x.id === change.id);
-      return `Akhiri pengecualian ${user(e?.userId)} melapor ke ${user(e?.toUserId)}`;
+      return `End reporting exception: ${user(e?.userId)} reports to ${user(e?.toUserId)}`;
     }
     case 'authority_upsert':
-      return org.authorities.some((a) => a.id === change.id) ? `Ubah wewenang ${change.name}` : `Tambah wewenang ${change.name} (${change.id})`;
+      return org.authorities.some((a) => a.id === change.id) ? `Change authority ${change.name}` : `Add authority ${change.name} (${change.id})`;
     case 'authority_delete':
-      return `Hapus wewenang ${authority(change.id)}`;
+      return `Delete authority ${authority(change.id)}`;
     case 'holder_add':
-      return `${user(change.userId)} memegang wewenang ${authority(change.authorityId)}${change.scopeUnitId ? ` untuk ${unit(change.scopeUnitId)}` : ''}`;
+      return `${user(change.userId)} holds authority ${authority(change.authorityId)}${change.scopeUnitId ? ` for ${unit(change.scopeUnitId)}` : ''}`;
     case 'holder_remove':
-      return `Cabut wewenang ${authority(change.authorityId)} dari ${user(change.userId)}${change.scopeUnitId ? ` (cakupan ${unit(change.scopeUnitId)})` : ''}`;
+      return `Revoke authority ${authority(change.authorityId)} from ${user(change.userId)}${change.scopeUnitId ? ` (scope ${unit(change.scopeUnitId)})` : ''}`;
   }
 }
 
@@ -324,7 +325,7 @@ async function applyChange(db: D1Database, deps: Deps, row: Row, now: Date): Pro
     after = applyToSnapshot(await loadOrg(db), change, now);
   } catch (e) {
     if (!(e instanceof ChangeError)) throw e;
-    await db.prepare(`UPDATE org_changes SET status = 'failed', review_note = ?, applied_at = ? WHERE id = ?`).bind(`Tidak bisa diterapkan: ${e.message}`, at, row.id).run();
+    await db.prepare(`UPDATE org_changes SET status = 'failed', review_note = ?, applied_at = ? WHERE id = ?`).bind(`Could not be applied: ${e.message}`, at, row.id).run();
     return { ok: false, error: e.message, moved: 0 };
   }
   await db.batch([
@@ -351,8 +352,9 @@ export async function applyDueChanges(db: D1Database, deps: Deps, now: Date): Pr
   return results.length;
 }
 
+/** Admin sistem boleh mengelola master organisasi tanpa ditunjuk sebagai pemilik. */
 export async function ownsOrg(db: D1Database, user: SessionUser): Promise<boolean> {
-  if (user.isAdmin) return false;
+  if (user.isAdmin) return true;
   return Boolean(await db.prepare('SELECT 1 FROM org_owners WHERE user_id = ?').bind(user.id).first());
 }
 
@@ -363,12 +365,12 @@ export function orgRoutes(deps: Deps) {
   app.use('*', async (c, next) => {
     const user = c.var.user;
     if (!user.isAdmin && !(await ownsOrg(c.env.DB, user)) && (await ownedFlows(c.env.DB, user)).length === 0) {
-      return c.json({ error: 'Khusus pemilik organisasi, pemilik proses, dan admin sistem' }, 403);
+      return c.json({ error: 'Organization owners, process owners, and system administrators only' }, 403);
     }
     await next();
   });
   const ownerOnly = async (c: Context<AppEnv>) =>
-    (await ownsOrg(c.env.DB, c.var.user)) ? null : c.json({ error: 'Hanya pemilik master organisasi yang boleh mengusulkan atau meninjau perubahan' }, 403);
+    (await ownsOrg(c.env.DB, c.var.user)) ? null : c.json({ error: 'Only an organization owner can propose or review changes' }, 403);
 
   app.get('/', async (c) => {
     const now = new Date();
@@ -401,7 +403,7 @@ export function orgRoutes(deps: Deps) {
        JOIN users p ON p.id = ch.proposed_by LEFT JOIN users r ON r.id = ch.reviewed_by
        ORDER BY CASE ch.status WHEN 'pending' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END, ch.proposed_at DESC LIMIT 100`,
     ).all<Row>();
-    return c.json(results.map((r) => ({ ...r, payload: JSON.parse(r.payload as string), impact: JSON.parse(r.impact as string), canReview: r.status === 'pending' && r.proposed_by !== c.var.user.id })));
+    return c.json(results.map((r) => ({ ...r, payload: JSON.parse(r.payload as string), impact: JSON.parse(r.impact as string), canReview: r.status === 'pending' && (c.var.user.isAdmin || r.proposed_by !== c.var.user.id) })));
   });
 
   app.post('/changes', async (c) => {
@@ -423,10 +425,10 @@ export function orgRoutes(deps: Deps) {
     if (change.kind === 'authority_delete') {
       const { results } = await db.prepare(`SELECT definition FROM flow_versions`).all<Row>();
       const used = results.map((r) => JSON.parse(r.definition as string) as FlowDefinition).find((d) => authoritiesIn(d).includes(change.id));
-      if (used) return c.json({ error: `Wewenang masih dipakai alur ${used.name}` }, 400);
+      if (used) return c.json({ error: `Authority is still used by flow ${used.name}` }, 400);
     }
     const effective = body.effectiveFrom ? Date.parse(body.effectiveFrom) : now.getTime();
-    if (Number.isNaN(effective)) return c.json({ error: 'Tanggal berlaku tidak sah' }, 400);
+    if (Number.isNaN(effective)) return c.json({ error: 'Effective date is not valid' }, 400);
     // Dampak: temuan struktur yang muncul atau hilang kalau usulan ini diterapkan.
     const before = new Set(findings(org, now).map((f) => f.message));
     const afterFindings = findings(after, now);
@@ -446,7 +448,18 @@ export function orgRoutes(deps: Deps) {
         .bind(id, change.kind, JSON.stringify(change), describeChange(change, org), body.note?.trim() || null, new Date(Math.max(effective, now.getTime())).toISOString(), c.var.user.id, at, JSON.stringify(impact)),
       auditStatement(db, { at, actor: { type: 'user', id: c.var.user.id }, action: 'org_change_proposed', flowVersionId: 'org', detail: { changeId: id, change } }),
     ]);
-    return c.json({ id, impact }, 201);
+    if (!c.var.user.isAdmin) return c.json({ id, impact }, 201);
+    // Admin sistem tidak menunggu peninjau kedua: usulannya langsung disetujui atas namanya dan ditandai di audit.
+    const note = 'Admin override: applied without a second reviewer';
+    await db.batch([
+      db.prepare(`UPDATE org_changes SET status = 'scheduled', reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ?`).bind(c.var.user.id, at, note, id),
+      auditStatement(db, { at, actor: { type: 'user', id: c.var.user.id }, action: 'org_change_admin_override', flowVersionId: 'org', detail: { changeId: id, adminOverride: true } }),
+    ]);
+    const row = (await db.prepare('SELECT * FROM org_changes WHERE id = ?').bind(id).first<Row>())!;
+    if ((row.effective_from as string) > at) return c.json({ id, impact, status: 'scheduled', effectiveFrom: row.effective_from }, 201);
+    const result = await applyChange(db, deps, row, now);
+    if (!result.ok) return c.json({ error: result.error }, 409);
+    return c.json({ id, impact, status: 'applied', movedTasks: result.moved }, 201);
   });
 
   app.post('/changes/:id/review', async (c) => {
@@ -455,9 +468,9 @@ export function orgRoutes(deps: Deps) {
     const body = await c.req.json<{ decision: 'approve' | 'reject'; note?: string }>();
     const db = c.env.DB;
     const row = await db.prepare('SELECT * FROM org_changes WHERE id = ?').bind(c.req.param('id')).first<Row>();
-    if (!row || row.status !== 'pending') return c.json({ error: 'Usulan tidak ditemukan atau sudah ditinjau' }, 404);
+    if (!row || row.status !== 'pending') return c.json({ error: 'Proposal not found or already reviewed' }, 404);
     // Pemisahan tugas: pengusul tidak boleh meninjau usulannya sendiri.
-    if (row.proposed_by === c.var.user.id) return c.json({ error: 'Usulan harus ditinjau pemilik organisasi lain' }, 403);
+    if (row.proposed_by === c.var.user.id && !c.var.user.isAdmin) return c.json({ error: 'A proposal must be reviewed by another organization owner' }, 403);
     const now = new Date();
     const at = now.toISOString();
     if (body.decision === 'reject') {
@@ -470,7 +483,7 @@ export function orgRoutes(deps: Deps) {
     await db.prepare(`UPDATE org_changes SET status = 'scheduled', reviewed_by = ?, reviewed_at = ?, review_note = ? WHERE id = ?`).bind(c.var.user.id, at, body.note?.trim() || null, row.id).run();
     if ((row.effective_from as string) > at) return c.json({ status: 'scheduled', effectiveFrom: row.effective_from });
     const result = await applyChange(db, deps, { ...row, reviewed_by: c.var.user.id }, now);
-    if (!result.ok) return c.json({ error: `Usulan tidak bisa diterapkan: ${result.error}` }, 409);
+    if (!result.ok) return c.json({ error: `Proposal could not be applied: ${result.error}` }, 409);
     return c.json({ status: 'applied', movedTasks: result.moved });
   });
 
@@ -480,7 +493,7 @@ export function orgRoutes(deps: Deps) {
     const directory = new InMemoryDirectory(org);
     const now = new Date();
     let current = org.users.find((u) => u.id === c.req.param('id'));
-    if (!current) return c.json({ error: 'Karyawan tidak ditemukan' }, 404);
+    if (!current) return c.json({ error: 'Person not found' }, 404);
     const chain: { userId: string; name: string; basis: string }[] = [];
     const seen = [current.id];
     let stop: string | undefined;
@@ -514,14 +527,13 @@ export function orgRoutes(deps: Deps) {
 
   // Admin sistem menunjuk pemilik master organisasi (minimal dua); admin sendiri tidak bisa menjadi pemilik.
   app.put('/owners', async (c) => {
-    if (!c.var.user.isAdmin) return c.json({ error: 'Khusus admin sistem' }, 403);
+    if (!c.var.user.isAdmin) return c.json({ error: 'System administrators only' }, 403);
     const { userIds } = await c.req.json<{ userIds: string[] }>();
     const ids = [...new Set(userIds ?? [])];
-    if (ids.length < 2) return c.json({ error: 'Master organisasi butuh minimal dua pemilik, supaya setiap perubahan ditinjau orang kedua' }, 400);
+    if (ids.length < 2) return c.json({ error: 'The organization master needs at least two owners, so that every change is reviewed by a second person' }, 400);
     const db = c.env.DB;
     const { results } = await db.prepare(`SELECT id, is_admin FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all<Row>();
-    if (results.length !== ids.length) return c.json({ error: 'Ada karyawan yang tidak ditemukan' }, 400);
-    if (results.some((r) => r.is_admin === 1)) return c.json({ error: 'Admin sistem tidak bisa menjadi pemilik master organisasi' }, 400);
+    if (results.length !== ids.length) return c.json({ error: 'Some people were not found' }, 400);
     const at = new Date().toISOString();
     await db.batch([
       db.prepare('DELETE FROM org_owners'),
@@ -533,11 +545,11 @@ export function orgRoutes(deps: Deps) {
 
   // Isi awal: admin sistem mengimpor daftar unit (CSV: id,name,level,parent_id). Kepala unit tidak ikut diimpor.
   app.post('/import/units', async (c) => {
-    if (!c.var.user.isAdmin) return c.json({ error: 'Khusus admin sistem' }, 403);
+    if (!c.var.user.isAdmin) return c.json({ error: 'System administrators only' }, 403);
     const lines = (await c.req.text()).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const header = lines.shift()?.split(',').map((h) => h.trim());
     const need = ['id', 'name', 'level'];
-    if (!header || need.some((h) => !header.includes(h))) return c.json({ error: `Kolom wajib: ${need.join(', ')}` }, 400);
+    if (!header || need.some((h) => !header.includes(h))) return c.json({ error: `Required columns: ${need.join(', ')}` }, 400);
     const now = new Date();
     let org = await loadOrg(c.env.DB);
     const rows = lines.map((line) => {
@@ -550,7 +562,7 @@ export function orgRoutes(deps: Deps) {
     const stmts: D1PreparedStatement[] = [];
     try {
       for (const r of rows) {
-        if (!/^[a-z0-9_]+$/.test(r.id ?? '')) throw new ChangeError(`ID unit tidak sah: ${r.id}`);
+        if (!/^[a-z0-9_]+$/.test(r.id ?? '')) throw new ChangeError(`Invalid unit ID: ${r.id}`);
         const change: OrgChange = { kind: 'unit_upsert', id: r.id, name: r.name!, level: r.level as UnitLevel, parentId: r.parent_id || null };
         org = applyToSnapshot(org, change, now);
         stmts.push(...statements(c.env.DB, change, org));

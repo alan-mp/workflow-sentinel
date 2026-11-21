@@ -114,8 +114,8 @@ describe('siklus permintaan pembelian', () => {
 
   it('notifikasi sampai ke approver, pemohon, dan penerima langkah notifikasi', async () => {
     const of = async (u: string) => (await t.call(u, 'GET', '/notifications')).body.map((n: any) => n.message).join('\n');
-    expect(await of('maya')).toMatch(/menunggu persetujuan Anda/);
-    expect(await of('budi')).toMatch(/disetujui/);
+    expect(await of('maya')).toMatch(/is awaiting your approval/);
+    expect(await of('budi')).toMatch(/was approved\./);
     expect(await of('pandu')).toMatch(/Permintaan pembelian disetujui/);
   });
 
@@ -183,7 +183,7 @@ describe('delegasi', () => {
     expect(made.status).toBe(201);
 
     const notes = (await t.call('maya', 'GET', '/notifications')).body.map((n: any) => n.message).join('\n');
-    expect(notes).toMatch(/Putra.*mendelegasikan approval Anda ke Irfan/);
+    expect(notes).toMatch(/Putra.*delegated your approvals to Irfan/);
     expect((await t.call('maya', 'GET', '/delegations')).body.find((d: any) => d.id === made.body.id)).toMatchObject({ created_by: 'u_putra' });
 
     const r = (await t.call('hadi', 'POST', '/requests', { flowKey: 'leave', data: { leave_type: 'sakit', start_date: '2026-12-10', end_date: '2026-12-11', days: 1 } })).body.id;
@@ -234,17 +234,24 @@ describe('membuat dan mengaktifkan alur', () => {
     expect((await t.call('irfan', 'GET', '/admin/versions/purchase-v1')).status).toBe(404);
   });
 
-  it('admin sistem melihat semua alur tetapi tidak bisa menyusun atau mengaktifkan', async () => {
+  it('admin sistem bisa menyusun dan mengaktifkan sendiri; pengecualian itu tercatat di audit', async () => {
     const all = (await t.call('hadi', 'GET', '/admin/flows')).body;
-    expect(all.map((f: any) => [f.key, f.canEdit])).toEqual([['it_access', false], ['leave', false], ['purchase', false]]);
-    expect((await t.call('hadi', 'POST', '/admin/drafts', { flowKey: 'purchase' })).status).toBe(403);
+    expect(all.map((f: any) => [f.key, f.canEdit])).toEqual([['it_access', true], ['leave', true], ['purchase', true]]);
+    const made = await t.call('hadi', 'POST', '/admin/drafts', { flowKey: 'vendor', name: 'Vendor' });
+    expect(made.status).toBe(201);
+    const draft = (await t.call('hadi', 'GET', `/admin/versions/${made.body.id}`)).body;
+    expect(draft).toMatchObject({ canEdit: true, canActivate: true });
+    expect((await t.call('hadi', 'PUT', `/admin/drafts/${made.body.id}`, { definition: draft.definition, sopUrl: 'https://contoh.test/sop-vendor' })).status).toBe(200);
+    const res = await t.call('hadi', 'POST', `/admin/drafts/${made.body.id}/activate`, { effectiveFrom: new Date().toISOString() });
+    expect(res.status).toBe(200);
+    const audit = await t.env.DB.prepare("SELECT detail FROM audit_events WHERE action = 'version_activated' AND flow_version_id = ?").bind(made.body.id).first<any>();
+    expect(JSON.parse(audit.detail)).toMatchObject({ adminOverride: true, editedBy: ['u_hadi'] });
   });
 
-  it('admin sistem menunjuk pemilik: minimal dua, bukan dirinya, dan hanya dia yang boleh', async () => {
+  it('admin sistem menunjuk pemilik: minimal dua, dan hanya dia yang boleh', async () => {
     const put = (who: string, userIds: string[]) => t.call(who, 'PUT', '/admin/flows/reimburse/owners', { userIds });
     expect((await put('hana', ['u_hana', 'u_fajar'])).status).toBe(403);
     expect((await put('hadi', ['u_fajar'])).status).toBe(400);
-    expect((await put('hadi', ['u_fajar', 'u_hadi'])).status).toBe(400);
     expect((await put('hadi', ['u_fajar', 'u_pandu'])).status).toBe(200);
     expect((await t.call('fajar', 'GET', '/me')).body.ownedFlows).toEqual(['reimburse']);
     const made = await t.call('fajar', 'POST', '/admin/drafts', { flowKey: 'reimburse', name: 'Reimburse' });
@@ -324,11 +331,10 @@ describe('membuat dan mengaktifkan alur', () => {
   it('orang kedua mengaktifkan; permintaan lama tetap di versi lama, yang baru di versi baru', async () => {
     const old = (await t.call('budi', 'POST', '/requests', purchase(1_000_000))).body.id;
     await t.call('hana', 'POST', `/admin/drafts/${draftId}/submit`);
-    expect((await t.call('dewi', 'GET', '/notifications')).body.map((n: any) => n.message).join('\n')).toMatch(/menunggu tinjauan/);
+    expect((await t.call('dewi', 'GET', '/notifications')).body.map((n: any) => n.message).join('\n')).toMatch(/is awaiting your review/);
 
     const body = { effectiveFrom: new Date().toISOString() };
     expect((await t.call('irfan', 'POST', `/admin/drafts/${draftId}/activate`, body)).status).toBe(403);
-    expect((await t.call('hadi', 'POST', `/admin/drafts/${draftId}/activate`, body)).status).toBe(403);
     const res = await t.call('dewi', 'POST', `/admin/drafts/${draftId}/activate`, { effectiveFrom: new Date(Date.now() - 1000).toISOString() });
     expect(res.status).toBe(200);
     expect((await t.call('hana', 'PUT', `/admin/drafts/${draftId}`, { definition: {} })).status).toBe(404);
@@ -354,7 +360,7 @@ describe('direktori dari CSV', () => {
     // Budi kini langsung di unit Produksi: atasannya kepala Produksi. Rina di Produksi Line: atasannya kepala seksi.
     const budi = (await t.call('budi', 'POST', '/requests', leave)).body.id;
     const detail = (await t.call('budi', 'GET', `/requests/${budi}`)).body;
-    expect(detail.tasks[0]).toMatchObject({ assignees: ['u_putra'], basis: 'kepala Produksi' });
+    expect(detail.tasks[0]).toMatchObject({ assignees: ['u_putra'], basis: 'head of Produksi' });
     // Dikembalikan ke seksinya: permintaan berikutnya kembali ke kepala seksi.
     await t.call('hadi', 'POST', '/admin/directory', 'id,email,name,unit_id,title\nu_budi,budi@contoh.test,Budi (Operator Produksi),produksi_line,Operator');
     const back = (await t.call('budi', 'POST', '/requests', leave)).body.id;
@@ -373,19 +379,18 @@ describe('master organisasi', () => {
     expect((await t.call('irfan', 'GET', '/org')).body.canEdit).toBe(false);
     expect((await propose('irfan', { kind: 'unit_head', id: 'produksi_line', headUserId: null })).status).toBe(403);
     expect((await t.call('hadi', 'PUT', '/org/owners', { userIds: ['u_hana'] })).status).toBe(400);
-    expect((await t.call('hadi', 'PUT', '/org/owners', { userIds: ['u_hana', 'u_hadi'] })).status).toBe(400);
   });
 
   it('usulan yang tidak sah ditolak dengan alasannya', async () => {
     const bad = async (change: object) => (await propose('hana', change)).body.error as string;
-    expect(await bad({ kind: 'unit_head', id: 'produksi_line', headUserId: 'u_fajar' })).toMatch(/belum ditempatkan/);
-    expect(await bad({ kind: 'unit_upsert', id: 'direksi', name: 'Direksi', level: 'direksi', parentId: 'produksi' })).toMatch(/harus berada di bawah induknya/);
-    expect(await bad({ kind: 'unit_delete', id: 'produksi' })).toMatch(/masih punya unit/);
-    expect(await bad({ kind: 'user_place', userId: 'u_maya', unitId: 'it' })).toMatch(/masih kepala Produksi Line/);
-    expect(await bad({ kind: 'unit_head', id: 'hr', actingHeadUserId: 'u_sari' })).toMatch(/Plt hanya diisi kalau kepala definitif kosong|tanggal berakhir/);
-    expect(await bad({ kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', reason: '', startsAt: '2026-12-01', endsAt: '2027-01-01' })).toMatch(/Alasan/);
-    expect(await bad({ kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', reason: 'x', startsAt: '2026-01-01', endsAt: '2028-01-01' })).toMatch(/satu tahun/);
-    expect(await bad({ kind: 'authority_delete', id: 'finance_manager' })).toMatch(/masih dipakai alur/);
+    expect(await bad({ kind: 'unit_head', id: 'produksi_line', headUserId: 'u_fajar' })).toMatch(/is not placed/);
+    expect(await bad({ kind: 'unit_upsert', id: 'direksi', name: 'Direksi', level: 'direksi', parentId: 'produksi' })).toMatch(/must be below its parent/);
+    expect(await bad({ kind: 'unit_delete', id: 'produksi' })).toMatch(/still has units/);
+    expect(await bad({ kind: 'user_place', userId: 'u_maya', unitId: 'it' })).toMatch(/is still head of Produksi Line/);
+    expect(await bad({ kind: 'unit_head', id: 'hr', actingHeadUserId: 'u_sari' })).toMatch(/An acting head can be set only when there is no permanent head|needs an end date/);
+    expect(await bad({ kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', reason: '', startsAt: '2026-12-01', endsAt: '2027-01-01' })).toMatch(/reason for the reporting exception is required/);
+    expect(await bad({ kind: 'exception_add', userId: 'u_budi', toUserId: 'u_irfan', reason: 'x', startsAt: '2026-01-01', endsAt: '2028-01-01' })).toMatch(/one year/);
+    expect(await bad({ kind: 'authority_delete', id: 'finance_manager' })).toMatch(/still used by flow/);
   });
 
   it('usulan ditinjau orang kedua; setelah berlaku, tugas terbuka pindah mengikuti struktur dan tercatat', async () => {
@@ -396,7 +401,7 @@ describe('master organisasi', () => {
     // Kosongkan kepala seksi: muncul temuan baru, dan tugas Maya naik ke kepala Produksi.
     const res = await propose('hana', { kind: 'unit_head', id: 'produksi_line', headUserId: null }, { note: 'Maya dimutasi' });
     expect(res.status).toBe(201);
-    expect(res.body.impact).toEqual([expect.objectContaining({ type: 'baru', message: expect.stringMatching(/Produksi Line: belum ada kepala/) })]);
+    expect(res.body.impact).toEqual([expect.objectContaining({ type: 'baru', message: expect.stringMatching(/Produksi Line: no head/) })]);
     expect((await review('hana', res.body.id)).status).toBe(403);
     const applied = (await review('dewi', res.body.id)).body;
     expect(applied.status).toBe('applied');
@@ -405,7 +410,7 @@ describe('master organisasi', () => {
     expect(await openTask('maya', id)).toBeUndefined();
     expect(await openTask('putra', id)).toBeTruthy();
     const detail = (await t.call('budi', 'GET', `/requests/${id}`)).body;
-    expect(detail.tasks[0].basis).toMatch(/kepala Produksi; naik karena kepala Produksi Line kosong/);
+    expect(detail.tasks[0].basis).toMatch(/head of Produksi; escalated because head of Produksi Line is vacant/);
     expect(detail.timeline.map((e: any) => e.action)).toContain('task_reassigned');
     expect((await org()).findings.map((f: any) => f.code)).toContain('UNIT_NO_HEAD');
     expect((await review('dewi', res.body.id)).status).toBe(404);
@@ -429,12 +434,21 @@ describe('master organisasi', () => {
     const leave = { flowKey: 'leave', data: { leave_type: 'tahunan', start_date: '2026-12-10', end_date: '2026-12-11', days: 2 } };
     const id = (await t.call('budi', 'POST', '/requests', leave)).body.id;
     const task = (await t.call('budi', 'GET', `/requests/${id}`)).body.tasks[0];
-    expect(task).toMatchObject({ assignees: ['u_irfan'], basis: 'pengecualian pelaporan: Diperbantukan ke proyek ERP' });
+    expect(task).toMatchObject({ assignees: ['u_irfan'], basis: 'reporting exception: Diperbantukan ke proyek ERP' });
 
     const add = await propose('hana', { kind: 'holder_add', authorityId: 'finance_manager', userId: 'u_pandu', scopeUnitId: 'it' });
     expect((await review('dewi', add.body.id)).body.status).toBe('applied');
     const holders = (await org()).holders.finance_manager;
     expect(holders).toEqual(expect.arrayContaining([{ userId: 'u_fajar' }, { userId: 'u_pandu', scopeUnitId: 'it' }]));
+  });
+
+  it('usulan admin sistem langsung berlaku tanpa peninjau kedua dan ditandai di audit', async () => {
+    const res = await propose('hadi', { kind: 'authority_upsert', id: 'legal', name: 'Persetujuan legal' });
+    expect(res.body).toMatchObject({ status: 'applied' });
+    expect((await org()).authorities.map((a: any) => a.id)).toContain('legal');
+    const audit = await t.env.DB.prepare("SELECT actor_id, detail FROM audit_events WHERE action = 'org_change_admin_override'").first<any>();
+    expect(audit.actor_id).toBe('u_hadi');
+    expect(JSON.parse(audit.detail)).toMatchObject({ changeId: res.body.id, adminOverride: true });
   });
 
   it('uji cakupan melaporkan orang yang jalur approval-nya buntu', async () => {
