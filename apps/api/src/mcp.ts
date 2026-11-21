@@ -62,8 +62,8 @@ export const TOOLS = [
     call: (a) => ({ method: 'POST', path: '/requests', body: a }),
   }),
   tool({ name: 'list_my_requests', title: 'My requests', description: 'List requests submitted by the signed-in user, with status and who each open step is waiting on.', input: none, readOnly: true, call: () => ({ method: 'GET', path: '/requests' }) }),
-  tool({ name: 'get_request', title: 'Request detail', description: 'Get one request: form values, attachments, approval steps with the reason each approver was assigned, and the full audit timeline.', input: z.object({ requestId }), readOnly: true, call: (a) => ({ method: 'GET', path: `/requests/${encodeURIComponent(a.requestId)}` }) }),
-  tool({ name: 'list_inbox', title: 'Approval inbox', description: 'List approval tasks waiting for the signed-in user, including tasks delegated to them, ordered by due date.', input: none, readOnly: true, call: () => ({ method: 'GET', path: '/inbox' }) }),
+  tool({ name: 'get_request', title: 'Request detail', description: 'Get one request: form values, attachments, approval steps with the reason each approver was assigned, the full audit timeline, and insight: an AI briefing and, for approvers only (never the requester), anomaly flags such as a purchase split below an approval limit.', input: z.object({ requestId }), readOnly: true, call: (a) => ({ method: 'GET', path: `/requests/${encodeURIComponent(a.requestId)}` }) }),
+  tool({ name: 'list_inbox', title: 'Approval inbox', description: 'List approval tasks waiting for the signed-in user, including tasks delegated to them, ordered by due date. flags is the number of anomaly flags on the request; open it with get_request to read them.', input: none, readOnly: true, call: () => ({ method: 'GET', path: '/inbox' }) }),
   tool({
     name: 'decide_task',
     title: 'Decide an approval task',

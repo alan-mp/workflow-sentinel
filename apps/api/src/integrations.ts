@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { startRequest, type RequestState } from '@sentinel/engine';
 import type { AppEnv, Deps } from './env';
 import { logError } from './log';
-import { inBackground, persist } from './requests';
+import { inBackground, noticeRequest, persist } from './requests';
 import { randomToken, shortId } from './security';
 import { D1Directory, auditStatement, currentVersions, getVersion, loadRequest } from './store';
 
@@ -119,6 +119,7 @@ export function integrationApiRoutes(deps: Deps) {
       .run();
     try {
       await persist(c.env.DB, deps, version, result, null, now, inBackground(c));
+      await noticeRequest(c.env.DB, c.env, deps, result.state, version, now, inBackground(c));
     } catch (e) {
       await c.env.DB.prepare('DELETE FROM request_sources WHERE request_id = ?').bind(result.state.id).run();
       throw e;

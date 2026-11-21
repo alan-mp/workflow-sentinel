@@ -1,5 +1,5 @@
 import type { ErpAdapter, EmailNotifier } from './adapters';
-import type { AiDrafter } from './ai';
+import type { AiDrafter, AiSummarizer } from './ai';
 
 /**
  * Bindings and vars are generated from wrangler.jsonc into worker-configuration.d.ts (`npm run types`).
@@ -28,6 +28,8 @@ export interface Deps {
   email: EmailNotifier;
   /** Diisi di test; di produksi dibuat dari Env (Claude lewat AI Gateway). */
   drafter?: AiDrafter;
+  /** Diisi di test; di produksi dibuat dari Env. */
+  summarizer?: AiSummarizer;
   /** Outbound HTTP for webhooks; replaced in tests. */
   http?: typeof fetch;
 }

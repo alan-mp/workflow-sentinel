@@ -12,7 +12,8 @@ import {
   type RequestState,
   type Result,
 } from '@sentinel/engine';
-import type { AppEnv, Deps, SessionUser } from './env';
+import type { AppEnv, Deps, Env, SessionUser } from './env';
+import { analyzeRequest, insightFor } from './insights';
 import { notifyFinal, sendDeliveries } from './integrations';
 import { logError } from './log';
 import { randomToken, shortId } from './security';
@@ -86,6 +87,15 @@ export async function persist(
   }
 }
 
+/** Flags and briefing never stand in the way of filing: a failure is logged and the request stands. */
+export async function noticeRequest(db: D1Database, env: Env, deps: Deps, state: RequestState, version: StoredVersion, now: Date, defer?: Defer) {
+  try {
+    await analyzeRequest(db, env, deps, state, version, now, defer);
+  } catch (e) {
+    logError('request analysis failed', e, { requestId: state.id });
+  }
+}
+
 /** Akses seperlunya: hanya pemohon, approver, dan delegasi aktif mereka. */
 async function canView(db: D1Database, user: SessionUser, state: RequestState, now: Date): Promise<boolean> {
   const involved = new Set(state.tasks.flatMap((t) => t.assignees));
@@ -123,6 +133,7 @@ export function requestRoutes(deps: Deps) {
       { directory: new D1Directory(c.env.DB), now },
     );
     await persist(c.env.DB, deps, version, result, null, now, inBackground(c));
+    await noticeRequest(c.env.DB, c.env, deps, result.state, version, now, inBackground(c));
     return c.json({ id: result.state.id }, 201);
   });
 
@@ -173,9 +184,10 @@ export function requestRoutes(deps: Deps) {
     const ids = [me, ...delegators];
     const { results } = await c.env.DB.prepare(
       `SELECT DISTINCT t.id AS task_id, t.step_id, t.due_at, t.created_at, t.assignees, r.id AS request_id,
-              u.name AS requester_name, v.definition
+              u.name AS requester_name, v.definition, json_array_length(COALESCE(ri.anomalies, '[]')) AS flags
        FROM tasks t, json_each(t.assignees) a
        JOIN requests r ON r.id = t.request_id
+       LEFT JOIN request_insights ri ON ri.request_id = r.id
        JOIN users u ON u.id = r.requester_id
        JOIN flow_versions v ON v.id = r.flow_version_id
        WHERE t.status = 'open' AND r.requester_id <> ? AND a.value IN (${ids.map(() => '?').join(',')})
@@ -196,6 +208,7 @@ export function requestRoutes(deps: Deps) {
           dueAt: r.due_at,
           createdAt: r.created_at,
           onBehalfOf: assignees.includes(me) ? null : delegators.find((d) => assignees.includes(d)),
+          flags: Number(r.flags ?? 0),
         };
       }),
     );
@@ -250,6 +263,7 @@ export function requestRoutes(deps: Deps) {
         detail: e.detail ? JSON.parse(e.detail as string) : null,
       })),
       attachments: attachments.results,
+      insight: await insightFor(c.env.DB, state.id, state.requesterId === me),
       names: Object.fromEntries(users.results.map((u) => [u.id, u.name])),
     });
   });
@@ -293,6 +307,7 @@ export function requestRoutes(deps: Deps) {
       { directory: new D1Directory(c.env.DB), now },
     );
     await persist(c.env.DB, deps, version, result, loaded.rev, now, inBackground(c));
+    await noticeRequest(c.env.DB, c.env, deps, result.state, version, now, inBackground(c));
     return c.json({ status: result.state.status });
   });
 

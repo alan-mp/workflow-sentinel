@@ -123,6 +123,8 @@ type Task = {
   dueAt: string | null;
   createdAt: string;
   onBehalfOf: string | null;
+  /** Anomaly flags on the request; only approvers ever see this. */
+  flags?: number;
 };
 
 const LEVELS: ToleranceLevel[] = ['out', 'near', 'ok'];
@@ -327,6 +329,11 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
                       <div className="cell-sub">
                         {t.stepName}
                         {t.onBehalfOf ? <span className="tag">Delegated</span> : null}
+                        {t.flags ? (
+                          <span className="tag warn" title="Sentinel flagged something worth a second look. Open the request to read it.">
+                            {t.flags === 1 ? '1 flag' : `${t.flags} flags`}
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="col-person">
@@ -582,6 +589,39 @@ const Section = ({ title, children, aside }: { title: string; children: ReactNod
   </section>
 );
 
+/** The AI briefing for everyone who can see the request, and anomaly flags for approvers only. */
+function InsightPanel({ insight }: { insight: any }) {
+  if (!insight) return null;
+  const flags: any[] = insight.anomalies ?? [];
+  return (
+    <section className="insight" aria-label="Summary">
+      <p className="insight-label">Summary · written by AI</p>
+      {insight.status === 'ready' ? (
+        <p className="insight-text">{insight.summary}</p>
+      ) : insight.status === 'pending' ? (
+        <p className="dim">Writing a summary…</p>
+      ) : (
+        <p className="dim">A summary is not available for this request.</p>
+      )}
+      {flags.length ? (
+        <div className="flags" role="note">
+          <p className="flags-title">Worth a second look</p>
+          <ul>
+            {flags.map((f, i) => (
+              <li key={i}>
+                {f.message}
+                {f.related?.length ? <span className="cell-sub"> Related: <span className="num">{f.related.join(', ')}</span></span> : null}
+              </li>
+            ))}
+          </ul>
+          {insight.anomalyNote ? <p className="flags-note">{insight.anomalyNote}</p> : null}
+          <p className="cell-sub">Flags are checks against earlier requests, not a verdict. The requester does not see them.</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function RequestDetail(props: { id: string; embedded?: boolean; closeHref?: string; onDecided?: () => Promise<unknown> | void }) {
   const { id } = props;
   const [r, reload, loadError] = useLoad<any>(`/requests/${id}`);
@@ -589,6 +629,13 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
   const [error, setError] = useState('');
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   const [busy, setBusy] = useState('');
+  // The AI briefing is written in the background right after filing; look again a few times.
+  const [polls, setPolls] = useState(0);
+  useEffect(() => {
+    if (r?.insight?.status !== 'pending' || polls >= 8) return;
+    const timer = setTimeout(() => reload().then(() => setPolls((n) => n + 1)), 3000);
+    return () => clearTimeout(timer);
+  }, [r, polls]);
   if (loadError) return <ErrorNote>{loadError}</ErrorNote>;
   if (!r) return <Loading />;
   const name = (uid?: string | null) => (uid ? (r.names[uid] ?? uid) : 'System');
@@ -635,6 +682,8 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
           {r.round > 1 ? ` · submission ${r.round}` : ''}
         </p>
       </header>
+
+      <InsightPanel insight={r.insight} />
 
       {mine ? (
         <section className="decision" aria-label="Your decision">

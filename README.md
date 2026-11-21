@@ -23,6 +23,9 @@ The demo runs on sample data. Demo flow and step names are in Indonesian because
 ## What it does
 - **Requests and inbox.** Submit a request, follow where it is, and decide a queue of approvals with search, filters,
   SLA bands, and bulk approve. Works on desktop and phone.
+- **AI request briefing and anomaly flags.** When a request is filed, the approver gets a short AI summary of what is
+  asked and anything missing. Sentinel also checks the request against earlier ones (a purchase split to stay under an
+  approval limit, an amount far above the usual, a duplicate) and shows the flags, explained by AI, to approvers only.
 - **AI flow drafter.** Paste or upload an SOP and ask for a flow. The AI proposes steps and rule tables and attaches a
   quote from the SOP to each rule; quotes are checked against the SOP text, and anything not found is flagged. The AI
   can only edit a draft. It asks a question when the SOP is ambiguous instead of guessing.

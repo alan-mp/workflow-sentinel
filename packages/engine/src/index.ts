@@ -7,3 +7,4 @@ export * from './validate';
 export * from './versions';
 export * from './engine';
 export * from './simulate';
+export * from './anomaly';

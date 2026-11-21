@@ -630,3 +630,13 @@ legend input { font-weight: 650; }
 .secret-box dt { font-size: 0.8rem; color: var(--muted); }
 .secret-box dd { margin: 0; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .secret-box code { font-family: var(--mono); font-size: 0.86rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 0.3rem 0.5rem; overflow-wrap: anywhere; min-width: 0; }
+
+/* ---------- AI summary and anomaly flags on a request ---------- */
+.insight { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-sunk); padding: 0.75rem 0.9rem; margin: 0 0 1rem; display: grid; gap: 0.4rem; }
+.insight-label { margin: 0; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.insight-text { margin: 0; color: var(--ink-strong); }
+.flags { border: 1px solid #ecc78a; background: var(--amber-wash); border-radius: var(--r); padding: 0.6rem 0.75rem; display: grid; gap: 0.35rem; }
+.flags-title { margin: 0; font-weight: 650; color: var(--amber); }
+.flags ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
+.flags-note { margin: 0; color: var(--ink-strong); }
+.cell-sub .tag + .tag, .cell-sub .tag { margin-left: 0.35rem; }

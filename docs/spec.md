@@ -23,6 +23,7 @@ resulting state, audit events, and notifications in one transaction. See [archit
 | `delegations` | Time-boxed delegations | |
 | `audit_events` | Append-only audit trail | Update and delete are blocked by triggers |
 | `notifications`, `attachments`, `chat_messages`, `sop_documents` | Supporting data | Attachment bytes are in R2 |
+| `request_insights` | Anomaly flags and the AI briefing per request | Flags are computed while the request is filed; the briefing is written in the background and retried up to 3 times |
 | `api_clients`, `request_sources` | Other systems allowed to file requests, and which request came from which system | Only the hash of an API key is stored; `external_ref` is unique per client, which makes retries safe |
 | `webhooks`, `webhook_deliveries` | Where outcomes are sent, and the delivery queue | One delivery per request, event, and URL; retried with backoff by cron |
 
@@ -63,6 +64,14 @@ attempt runs after the response to the decision is sent (`ctx.waitUntil`), so no
 run on the 15-minute cron, so each wait is rounded up to the next cron run. Form data is not included in the payload.
 A delivery failure never changes the decision.
 
+**Request insight.** Filing or resubmitting a request runs `detectAnomalies` (engine, deterministic) against the
+flow's requests of the last 180 days and stores the flags; then the AI briefing is written through `ctx.waitUntil`.
+`GET /requests/:id` returns `insight: { status, summary, anomalies?, anomalyNote? }`; `anomalies` and `anomalyNote`
+are omitted for the requester. `GET /inbox` returns `flags`, the number of flags per request. The briefing model gets
+the flow name, form labels and values, the requester's name, title and unit, approver names per step, attachment names,
+and the worded flags; it is told to treat request text as data, never to recommend a decision, and to keep the flags
+out of the summary the requester can read.
+
 **MCP** (`/mcp`, Streamable HTTP, stateless): 42 tools defined in `apps/api/src/mcp.ts`. Each tool validates its input
 with a schema and calls one API endpoint in-process as the authorized user. OAuth 2.1 with PKCE and dynamic client
 registration: `/authorize`, `/oauth/token`, `/oauth/register`, metadata under `/.well-known/`.
@@ -84,6 +93,8 @@ result is validated before it is stored, and validation errors are returned to t
 | F8 | One reminder, escalation never adds the requester | `packages/engine/test/sla.test.ts` |
 | F9 | Audit rows and active versions are immutable | `packages/engine/test/audit.test.ts`, `apps/api/test/api.test.ts` (audit in database) |
 | F10 | MCP round trip with OAuth; forbidden calls return 403 | Manual end-to-end check against the live URL (not yet automated; tracked as a v2 issue) |
+| F12 | Briefing is written after filing, uses form labels and names, and is retried after a failure | `apps/api/test/api.test.ts` (AI summary and anomaly flags) |
+| F13 | Split below a limit, outlier, duplicate; limits read from the flow; no flags for non-money numbers; requester never sees flags | `packages/engine/test/anomaly.test.ts`, `apps/api/test/api.test.ts` |
 | F11 | API key required; request filed by another system follows the same flow; duplicate `externalRef` is not created twice; signed webhook on the final outcome; failed delivery retried; revoked key rejected | `apps/api/test/api.test.ts` (integrations) |
 
 Rule evaluation has a parity test: over 40,000 combinations of operators and values give the same result as the

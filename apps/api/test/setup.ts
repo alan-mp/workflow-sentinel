@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { getPlatformProxy } from 'wrangler';
-import type { AiDrafter } from '../src/ai';
+import type { AiDrafter, AiSummarizer } from '../src/ai';
 import type { Env } from '../src/env';
 import { createApp } from '../src/index';
 import { DEMO_PASSWORD, seedSql } from '../scripts/seed';
@@ -9,7 +9,7 @@ import { DEMO_PASSWORD, seedSql } from '../scripts/seed';
 const path = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
 /** Worker lokal dengan D1 dan R2 sungguhan (workerd), database kosong lalu diisi data contoh. */
-export async function setup(drafter?: AiDrafter) {
+export async function setup(drafter?: AiDrafter, summarizer?: AiSummarizer) {
   const proxy = await getPlatformProxy<Env>({ configPath: path('../wrangler.jsonc'), persist: false });
   const env = proxy.env;
   const migration = readdirSync(path('../migrations'))
@@ -19,7 +19,7 @@ export async function setup(drafter?: AiDrafter) {
   const statements = [...migration.split(/;\s*$/m), ...(await seedSql()).split(/;\s*$/m)].map((s) => s.trim()).filter(Boolean);
   for (const sql of statements) await env.DB.prepare(sql).run();
 
-  const { app, deps } = createApp({ drafter });
+  const { app, deps } = createApp({ drafter, summarizer });
   const cookies = new Map<string, string>();
 
   /**

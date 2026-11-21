@@ -52,6 +52,6 @@ export default {
     return provider(new URL(request.url).origin).fetch(request, env, ctx);
   },
   async scheduled(_controller, env) {
-    await runCron(env.DB, deps, new Date());
+    await runCron(env.DB, deps, new Date(), env);
   },
 } satisfies ExportedHandler<Env>;

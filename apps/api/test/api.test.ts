@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { AiDrafter, DraftTurnInput } from '../src/ai';
+import type { AiDrafter, AiSummarizer, DraftTurnInput, SummaryInput } from '../src/ai';
 import { runCron } from '../src/cron';
+import { retryBriefings } from '../src/insights';
 import { deliverDue, sign } from '../src/integrations';
 import { safeEqual } from '../src/security';
 import { runSla } from '../src/requests';
@@ -31,8 +32,19 @@ const fakeDrafter: AiDrafter = {
   },
 };
 
+/** Pengganti Claude untuk ringkasan: mencatat masukan, dan bisa dibuat gagal. */
+const briefed: SummaryInput[] = [];
+let briefingFails = false;
+const fakeSummarizer: AiSummarizer = {
+  async summarize(input) {
+    if (briefingFails) throw new Error('gateway timeout');
+    briefed.push(input);
+    return { summary: `${input.requester.name} meminta ${input.flowName}.`, anomalyNote: input.anomalies.length ? 'Periksa apakah pembelian ini dipecah.' : '' };
+  },
+};
+
 beforeAll(async () => {
-  t = await setup(fakeDrafter);
+  t = await setup(fakeDrafter, fakeSummarizer);
 }, 60_000);
 afterAll(() => t.dispose());
 
@@ -645,5 +657,50 @@ describe('integrasi: API masuk dan webhook keluar', () => {
     });
     await expect(runCron(broken, t.deps, new Date(Date.now() + 2 * 60_000))).rejects.toThrow('Scheduled run failed');
     expect(sent.map((s) => JSON.parse(s.body).request.id)).toEqual([id]);
+  });
+});
+
+describe('ringkasan AI dan tanda anomali', () => {
+  const buy = (amount: number) => ({ flowKey: 'purchase', data: { amount, category: 'kebersihan', description: 'Alat kebersihan gudang' } });
+  const loginOf = (userId: string) => userId.replace(/^u_/, '');
+  let first: string;
+  let second: string;
+  let approver: string;
+
+  it('pengajuan biasa mendapat ringkasan tanpa tanda', async () => {
+    first = (await t.call('budi', 'POST', '/requests', buy(6_000_000))).body.id;
+    const mine = (await t.call('budi', 'GET', `/requests/${first}`)).body;
+    expect(mine.insight).toMatchObject({ status: 'ready', summary: expect.stringContaining('meminta') });
+    approver = loginOf(mine.tasks.find((x: any) => x.status === 'open').assignees[0]);
+    expect((await t.call(approver, 'GET', `/requests/${first}`)).body.insight.anomalies).toEqual([]);
+    // AI menerima isian dengan label dan nama orang, sesuai keputusan pemilik produk.
+    expect(briefed.at(-1)).toMatchObject({ flowName: expect.any(String), fields: expect.arrayContaining([{ label: 'Nominal (Rp)', value: '6,000,000' }]) });
+  });
+
+  it('pembelian yang dipecah ditandai untuk approver, tetapi tidak terlihat oleh pemohon', async () => {
+    second = (await t.call('budi', 'POST', '/requests', buy(5_000_000))).body.id;
+    const seen = (await t.call(approver, 'GET', `/requests/${second}`)).body.insight;
+    expect(seen.anomalies.map((a: any) => a.kind)).toContain('split_below_threshold');
+    expect(seen.anomalies[0].related).toContain(first);
+    expect(seen.anomalyNote).toBe('Periksa apakah pembelian ini dipecah.');
+
+    const own = (await t.call('budi', 'GET', `/requests/${second}`)).body.insight;
+    expect(own.summary).toBeTruthy();
+    expect(own).not.toHaveProperty('anomalies');
+    expect(own).not.toHaveProperty('anomalyNote');
+
+    const row = (await t.call(approver, 'GET', '/inbox')).body.find((x: any) => x.requestId === second);
+    expect(row.flags).toBeGreaterThanOrEqual(1);
+    const audit = await t.env.DB.prepare("SELECT detail FROM audit_events WHERE action = 'anomalies_flagged' AND request_id = ?").bind(second).first<any>();
+    expect(JSON.parse(audit.detail).anomalies[0]).toMatchObject({ kind: 'split_below_threshold' });
+  });
+
+  it('ringkasan yang gagal dicatat, lalu dicoba ulang oleh cron', async () => {
+    briefingFails = true;
+    const id = (await t.call('budi', 'POST', '/requests', { flowKey: 'purchase', data: { amount: 1_500_000, category: 'atk', description: 'Map dokumen' } })).body.id;
+    expect((await t.call('budi', 'GET', `/requests/${id}`)).body.insight).toMatchObject({ status: 'failed', summary: null });
+    briefingFails = false;
+    expect(await retryBriefings(t.env.DB, t.env, t.deps, new Date(Date.now() + 5 * 60_000))).toBeGreaterThanOrEqual(1);
+    expect((await t.call('budi', 'GET', `/requests/${id}`)).body.insight).toMatchObject({ status: 'ready' });
   });
 });
