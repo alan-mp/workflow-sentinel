@@ -62,10 +62,10 @@ export function tolerance(createdAt?: string | null, dueAt?: string | null, now 
 }
 
 export const TOLERANCE_LABEL: Record<ToleranceLevel, string> = {
-  ok: 'Dalam batas',
-  near: 'Mendekati batas',
-  out: 'Lewat batas',
-  none: 'Tanpa tenggat',
+  ok: 'On track',
+  near: 'Due soon',
+  out: 'Overdue',
+  none: 'No due date',
 };
 
 /** Lebar zona spesifikasi pada pita (sisanya zona lewat batas), dan letak tanda 75%. */
@@ -79,11 +79,11 @@ const WARN = LIMIT * 0.75;
  */
 export function ToleranceBar({ createdAt, dueAt, wide }: { createdAt?: string | null; dueAt?: string | null; wide?: boolean }) {
   const t = tolerance(createdAt, dueAt);
-  if (t.level === 'none') return <span className="tol-none">Tanpa tenggat</span>;
+  if (t.level === 'none') return <span className="tol-none">No due date</span>;
   const inSpec = Math.min(Math.max(t.ratio, 0), 1) * LIMIT;
   const over = Math.max(t.ratio - 1, 0);
   const overrun = (over / (over + 1)) * (100 - LIMIT);
-  const text = t.left >= 0 ? `sisa ${fmtSpan(t.left)}` : `lewat ${fmtSpan(-t.left)}`;
+  const text = t.left >= 0 ? `${fmtSpan(t.left)} left` : `overdue by ${fmtSpan(-t.left)}`;
   return (
     <span className={`tol ${t.level} ${wide ? 'wide' : ''}`} title={`${TOLERANCE_LABEL[t.level]}: ${text}`}>
       <span className="tol-track" aria-hidden="true">
@@ -119,7 +119,7 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
   );
 }
 
-export const Loading = ({ label = 'Memuat…' }: { label?: string }) => (
+export const Loading = ({ label = 'Loading…' }: { label?: string }) => (
   <div className="loading" role="status">
     <span className="spinner" aria-hidden="true" />
     {label}

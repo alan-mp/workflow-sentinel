@@ -28,7 +28,7 @@ export function useLoad<T>(url: string, deps: unknown[] = []): [T | undefined, (
   return [data, load, error];
 }
 
-const fmtNumber = (v: unknown) => Number(v).toLocaleString('id-ID');
+const fmtNumber = (v: unknown) => Number(v).toLocaleString('en-US');
 
 export function DynamicForm(props: { fields: Field[]; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; disabled?: boolean }) {
   const set = (key: string, v: unknown) => {
@@ -46,10 +46,10 @@ export function DynamicForm(props: { fields: Field[]; value: Record<string, unkn
             <span>{f.label}</span>
           </label>
         ) : (
-          <label key={f.key} className={`field ${f.type === 'string' && /alasan|keterangan|deskripsi/i.test(f.label) ? 'span-2' : ''}`}>
+          <label key={f.key} className={`field ${f.type === 'string' && /alasan|keterangan|deskripsi|reason|note|description/i.test(f.label) ? 'span-2' : ''}`}>
             <span className="field-label">
               {f.label}
-              {f.optional ? <span className="optional"> opsional</span> : null}
+              {f.optional ? <span className="optional"> optional</span> : null}
             </span>
             <input
               type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
@@ -90,13 +90,13 @@ export function Login({ onDone }: { onDone: () => void }) {
         <img src="/brand/mp-logo-white-768.png" alt="Mitra Prodin" width={168} height={79} />
         <div>
           <p className="login-app">Sentinel</p>
-          <p className="login-tag">Approval cuti, akses IT, dan pembelian dalam satu alur yang tercatat.</p>
+          <p className="login-tag">Leave, IT access, and purchase approvals in one audited flow.</p>
         </div>
       </aside>
       <form className="login-form" onSubmit={submit}>
-        <h1>Masuk ke Sentinel</h1>
+        <h1>Sign in to Sentinel</h1>
         <label className="field">
-          <span className="field-label">Email kantor</span>
+          <span className="field-label">Work email</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" required />
         </label>
         <label className="field">
@@ -105,7 +105,7 @@ export function Login({ onDone }: { onDone: () => void }) {
         </label>
         <ErrorNote>{error}</ErrorNote>
         <button className="btn primary block" disabled={busy}>
-          {busy ? 'Memeriksa…' : 'Masuk'}
+          {busy ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
     </div>
@@ -156,7 +156,7 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
     const due = (t: Task) => (t.dueAt ? Date.parse(t.dueAt) : Infinity);
     if (sort === 'due') list.sort((x, y) => due(x) - due(y));
     if (sort === 'new') list.sort((x, y) => Date.parse(y.createdAt) - Date.parse(x.createdAt));
-    if (sort === 'requester') list.sort((x, y) => x.requesterName.localeCompare(y.requesterName, 'id'));
+    if (sort === 'requester') list.sort((x, y) => x.requesterName.localeCompare(y.requesterName, 'en'));
     return list;
   }, [tasks, q, flow, level, sort]);
 
@@ -203,14 +203,14 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
   const filtersActive = Boolean(q || flow || level);
   return (
     <div className={`split ${props.selected ? 'has-detail' : ''}`}>
-      <section className="split-list" aria-label="Daftar tugas">
+      <section className="split-list" aria-label="Task list">
         <PageHead
-          title="Kotak masuk"
-          sub={tasks ? `${tasks.length} tugas menunggu keputusan Anda` : undefined}
+          title="Inbox"
+          sub={tasks ? `${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'} awaiting your decision` : undefined}
         />
-        <div className="gauge" role="group" aria-label="Saring berdasarkan tenggat">
+        <div className="gauge" role="group" aria-label="Filter by due status">
           <button className={`gauge-seg all ${level === '' ? 'on' : ''}`} onClick={() => setLevel('')}>
-            <span className="gauge-n">{tasks?.length ?? 0}</span> Semua
+            <span className="gauge-n">{tasks?.length ?? 0}</span> All
           </button>
           {LEVELS.map((l) => (
             <button key={l} className={`gauge-seg ${l} ${level === l ? 'on' : ''}`} onClick={() => setLevel(level === l ? '' : l)} aria-pressed={level === l}>
@@ -219,54 +219,54 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
           ))}
         </div>
         {checked.size > 0 ? (
-          <div className="toolbar selection" role="region" aria-label="Aksi untuk tugas terpilih">
-            <strong>{checked.size} dipilih</strong>
-            <input className="grow" placeholder="Komentar untuk semua (opsional)" value={bulkComment} onChange={(e) => setBulkComment(e.target.value)} />
+          <div className="toolbar selection" role="region" aria-label="Actions for selected tasks">
+            <strong>{checked.size} selected</strong>
+            <input className="grow" placeholder="Comment for all (optional)" value={bulkComment} onChange={(e) => setBulkComment(e.target.value)} />
             {confirming ? (
               <>
-                <span className="confirm-text">Setujui {checked.size} permintaan?</span>
+                <span className="confirm-text">Approve {checked.size} {checked.size === 1 ? 'request' : 'requests'}?</span>
                 <button key="cancel" className="btn" onClick={() => setConfirming(false)}>
-                  Batal
+                  Cancel
                 </button>
                 <button key="confirm" className="btn primary" onClick={approveChecked}>
-                  <Check size={16} /> Ya, setujui {checked.size}
+                  <Check size={16} /> Approve {checked.size}
                 </button>
               </>
             ) : (
               <>
                 <button key="clear" className="btn ghost" onClick={() => setChecked(new Set())}>
-                  Batal pilih
+                  Clear selection
                 </button>
                 <button key="ask" className="btn primary" onClick={() => setConfirming(true)}>
-                  <Check size={16} /> Setujui terpilih
+                  <Check size={16} /> Approve selected
                 </button>
               </>
             )}
           </div>
         ) : (
           <div className="toolbar">
-            <input className="grow" type="search" placeholder="Cari nomor, pemohon, alur" value={props.query} onChange={(e) => props.setQuery(e.target.value)} aria-label="Cari tugas" />
-            <select value={flow} onChange={(e) => setFlow(e.target.value)} aria-label="Saring alur">
-              <option value="">Semua alur</option>
+            <input className="grow" type="search" placeholder="Search by number, requester, or flow" value={props.query} onChange={(e) => props.setQuery(e.target.value)} aria-label="Search tasks" />
+            <select value={flow} onChange={(e) => setFlow(e.target.value)} aria-label="Filter by flow">
+              <option value="">All flows</option>
               {flows.map((f) => (
                 <option key={f}>{f}</option>
               ))}
             </select>
-            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Urutkan">
-              <option value="due">Tenggat terdekat</option>
-              <option value="new">Terbaru masuk</option>
-              <option value="requester">Nama pemohon</option>
+            <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} aria-label="Sort">
+              <option value="due">Due soonest</option>
+              <option value="new">Newest first</option>
+              <option value="requester">Requester name</option>
             </select>
           </div>
         )}
         {bulk ? (
           <div className={`notice ${bulk.errors.length ? 'bad' : bulk.busy ? '' : 'ok'}`} role="status">
-            {bulk.busy ? `Menyetujui… ${bulk.done} selesai` : `${bulk.done} permintaan disetujui.`}
+            {bulk.busy ? `Approving… ${bulk.done} done` : `${bulk.done} ${bulk.done === 1 ? 'request' : 'requests'} approved.`}
             {bulk.errors.map((e) => (
               <div key={e}>{e}</div>
             ))}
             {bulk.busy ? null : (
-              <button className="icon-btn" onClick={() => setBulk(null)} aria-label="Tutup">
+              <button className="icon-btn" onClick={() => setBulk(null)} aria-label="Dismiss">
                 <X size={16} />
               </button>
             )}
@@ -276,8 +276,8 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
         {!tasks && !loadError ? <Loading /> : null}
         {tasks && rows.length === 0 ? (
           filtersActive ? (
-            <Empty title="Tidak ada tugas yang cocok">
-              Ubah pencarian atau saringan.{' '}
+            <Empty title="No matching tasks">
+              Change your search or filters.{' '}
               <button
                 className="link"
                 onClick={() => {
@@ -286,11 +286,11 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
                   setLevel('');
                 }}
               >
-                Hapus saringan
+                Clear filters
               </button>
             </Empty>
           ) : (
-            <Empty title="Tidak ada yang menunggu keputusan Anda">Tugas baru akan muncul di sini, diurutkan dari tenggat terdekat.</Empty>
+            <Empty title="Nothing is awaiting your decision">New tasks appear here, sorted by nearest due date.</Empty>
           )
         ) : null}
         {rows.length > 0 ? (
@@ -299,12 +299,12 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
               <thead>
                 <tr>
                   <th className="col-check">
-                    <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Pilih semua" />
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all" />
                   </th>
-                  <th>Nomor</th>
-                  <th>Alur dan langkah</th>
-                  <th className="col-person">Pemohon</th>
-                  <th className="col-tol">Tenggat</th>
+                  <th>Number</th>
+                  <th>Flow and step</th>
+                  <th className="col-person">Requester</th>
+                  <th className="col-tol">Due</th>
                 </tr>
               </thead>
               <tbody>
@@ -315,7 +315,7 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
                     onClick={() => (location.hash = `#/inbox/${t.requestId}`)}
                   >
                     <td className="col-check" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={checked.has(t.taskId)} onChange={() => toggle(t.taskId)} aria-label={`Pilih ${t.requestId}`} />
+                      <input type="checkbox" checked={checked.has(t.taskId)} onChange={() => toggle(t.taskId)} aria-label={`Select ${t.requestId}`} />
                     </td>
                     <td>
                       <a className="req-id" href={`#/inbox/${t.requestId}`} onClick={(e) => e.stopPropagation()}>
@@ -326,7 +326,7 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
                       <div className="cell-main">{t.flowName}</div>
                       <div className="cell-sub">
                         {t.stepName}
-                        {t.onBehalfOf ? <span className="tag">Delegasi</span> : null}
+                        {t.onBehalfOf ? <span className="tag">Delegated</span> : null}
                       </div>
                     </td>
                     <td className="col-person">
@@ -343,12 +343,12 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
         ) : null}
       </section>
       {props.selected ? (
-        <section className="split-detail" aria-label="Detail permintaan">
+        <section className="split-detail" aria-label="Request details">
           <RequestDetail id={props.selected} key={props.selected} embedded closeHref="#/inbox" onDecided={afterDecision} />
         </section>
       ) : (
         <section className="split-detail placeholder" aria-hidden="true">
-          <p>Pilih tugas untuk melihat detail dan memutuskan.</p>
+          <p>Select a task to review it and decide.</p>
         </section>
       )}
     </div>
@@ -358,11 +358,11 @@ export function Inbox(props: { selected?: string; query: string; setQuery: (q: s
 /* ---------- Permintaan saya ---------- */
 
 const REQ_FILTERS: [string, string][] = [
-  ['', 'Semua'],
-  ['in_progress', 'Diproses'],
-  ['revision_requested', 'Perlu revisi'],
-  ['approved', 'Disetujui'],
-  ['rejected', 'Ditolak'],
+  ['', 'All'],
+  ['in_progress', 'In progress'],
+  ['revision_requested', 'Needs revision'],
+  ['approved', 'Approved'],
+  ['rejected', 'Rejected'],
 ];
 
 export function MyRequests({ selected }: { selected?: string }) {
@@ -374,45 +374,45 @@ export function MyRequests({ selected }: { selected?: string }) {
   );
   return (
     <div className={`split ${selected ? 'has-detail' : ''}`}>
-      <section className="split-list" aria-label="Permintaan saya">
+      <section className="split-list" aria-label="My requests">
         <PageHead
-          title="Permintaan saya"
-          sub={requests ? `${requests.length} permintaan` : undefined}
+          title="My requests"
+          sub={requests ? `${requests.length} ${requests.length === 1 ? 'request' : 'requests'}` : undefined}
           actions={
             <a className="btn primary" href="#/new">
-              Buat permintaan
+              New request
             </a>
           }
         />
         <div className="toolbar">
-          <div className="segmented" role="group" aria-label="Saring status">
+          <div className="segmented" role="group" aria-label="Filter by status">
             {REQ_FILTERS.map(([key, label]) => (
               <button key={key} className={status === key ? 'on' : ''} onClick={() => setStatus(key)} aria-pressed={status === key}>
                 {label}
               </button>
             ))}
           </div>
-          <input className="grow" type="search" placeholder="Cari nomor atau alur" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Cari permintaan" />
+          <input className="grow" type="search" placeholder="Search by number or flow" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search requests" />
         </div>
         <ErrorNote>{error}</ErrorNote>
         {!requests && !error ? <Loading /> : null}
         {requests?.length === 0 ? (
-          <Empty title="Belum ada permintaan">
-            Ajukan cuti, akses IT, atau pembelian dari <a href="#/new">Buat permintaan</a>.
+          <Empty title="No requests yet">
+            Submit a leave, IT access, or purchase request from <a href="#/new">New request</a>.
           </Empty>
         ) : requests && rows.length === 0 ? (
-          <Empty title="Tidak ada permintaan dengan status ini" />
+          <Empty title="No requests with this status" />
         ) : null}
         {rows.length > 0 ? (
           <div className="table-wrap">
             <table className="table req-table">
               <thead>
                 <tr>
-                  <th>Nomor</th>
-                  <th>Alur</th>
+                  <th>Number</th>
+                  <th>Flow</th>
                   <th>Status</th>
-                  <th className="col-wait">Menunggu</th>
-                  <th className="col-time">Diajukan</th>
+                  <th className="col-wait">Waiting on</th>
+                  <th className="col-time">Submitted</th>
                 </tr>
               </thead>
               <tbody>
@@ -432,13 +432,13 @@ export function MyRequests({ selected }: { selected?: string }) {
                         r.waiting.map((w: any, i: number) => (
                           <div key={i} className="req-wait">
                             <span className="cell-sub">
-                              <strong className="wait-step">{w.stepName}</strong> {w.assignees.map((a: string) => splitName(a)[0]).join(' atau ')}
+                              <strong className="wait-step">{w.stepName}</strong> {w.assignees.map((a: string) => splitName(a)[0]).join(' or ')}
                             </span>
                             <ToleranceBar createdAt={w.createdAt} dueAt={w.dueAt} />
                           </div>
                         ))
                       ) : (
-                        <span className="dim">{r.status === 'revision_requested' ? 'Menunggu perbaikan Anda' : 'Selesai'}</span>
+                        <span className="dim">{r.status === 'revision_requested' ? 'Waiting for your revision' : 'Completed'}</span>
                       )}
                     </td>
                     <td className="col-time num">{fmtTime(r.created_at)}</td>
@@ -450,12 +450,12 @@ export function MyRequests({ selected }: { selected?: string }) {
         ) : null}
       </section>
       {selected ? (
-        <section className="split-detail" aria-label="Detail permintaan">
+        <section className="split-detail" aria-label="Request details">
           <RequestDetail id={selected} key={selected} embedded closeHref="#/requests" onDecided={reload} />
         </section>
       ) : (
         <section className="split-detail placeholder" aria-hidden="true">
-          <p>Pilih permintaan untuk melihat posisinya di alur.</p>
+          <p>Select a request to see where it is in the flow.</p>
         </section>
       )}
     </div>
@@ -472,7 +472,7 @@ export function NewRequest({ flowKey }: { flowKey?: string }) {
   if (!flowKey) {
     return (
       <div className="page narrow">
-        <PageHead title="Buat permintaan" sub="Pilih jenis permintaan. Approver ditentukan otomatis oleh alur yang berlaku." />
+        <PageHead title="New request" sub="Choose a request type. Approvers are assigned automatically by the active flow." />
         <ul className="choice-list">
           {flows.map((f) => (
             <li key={f.key}>
@@ -486,12 +486,12 @@ export function NewRequest({ flowKey }: { flowKey?: string }) {
             </li>
           ))}
         </ul>
-        {flows.length === 0 ? <Empty title="Belum ada alur yang berlaku" /> : null}
+        {flows.length === 0 ? <Empty title="No active flows yet" /> : null}
       </div>
     );
   }
   const flow = flows.find((f) => f.key === flowKey);
-  if (!flow) return <Empty title="Alur tidak ditemukan atau belum berlaku" />;
+  if (!flow) return <Empty title="This flow was not found or is not active yet" />;
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -507,7 +507,7 @@ export function NewRequest({ flowKey }: { flowKey?: string }) {
   return (
     <div className="page narrow">
       <a className="back" href="#/new">
-        <ArrowLeft size={16} /> Jenis permintaan
+        <ArrowLeft size={16} /> Request types
       </a>
       <PageHead title={flow.name} />
       <form className="sheet" onSubmit={submit}>
@@ -515,10 +515,10 @@ export function NewRequest({ flowKey }: { flowKey?: string }) {
         <ErrorNote>{error}</ErrorNote>
         <div className="form-actions">
           <a className="btn ghost" href="#/new">
-            Batal
+            Cancel
           </a>
           <button className="btn primary" disabled={busy}>
-            {busy ? 'Mengirim…' : 'Kirim permintaan'}
+            {busy ? 'Submitting…' : 'Submit request'}
           </button>
         </div>
       </form>
@@ -529,24 +529,24 @@ export function NewRequest({ flowKey }: { flowKey?: string }) {
 /* ---------- Detail permintaan ---------- */
 
 const ACTION: Record<string, string> = {
-  request_submitted: 'mengajukan permintaan',
-  request_resubmitted: 'mengajukan ulang',
-  task_created: 'menunggu',
-  task_approved: 'menyetujui',
-  task_rejected: 'menolak',
-  task_revision_requested: 'meminta revisi',
-  task_cancelled: 'tugas dibatalkan',
-  task_reassigned: 'tugas dialihkan karena perubahan struktur ke',
-  step_skipped: 'langkah tidak diperlukan',
-  notification_requested: 'notifikasi dikirim',
-  request_approved: 'permintaan disetujui',
-  request_rejected: 'permintaan ditolak',
-  request_revision_requested: 'dikembalikan untuk revisi',
-  sla_reminder: 'pengingat tenggat dikirim',
-  sla_escalated: 'eskalasi ke atasan',
-  attachment_added: 'menambahkan lampiran',
-  erp_synced: 'terkirim ke ERP',
-  erp_sync_failed: 'gagal dikirim ke ERP',
+  request_submitted: 'submitted the request',
+  request_resubmitted: 'resubmitted the request',
+  task_created: 'waiting on',
+  task_approved: 'approved',
+  task_rejected: 'rejected',
+  task_revision_requested: 'requested a revision',
+  task_cancelled: 'task cancelled',
+  task_reassigned: 'task reassigned after a structure change to',
+  step_skipped: 'step not required',
+  notification_requested: 'notification sent',
+  request_approved: 'request approved',
+  request_rejected: 'request rejected',
+  request_revision_requested: 'returned for revision',
+  sla_reminder: 'due date reminder sent',
+  sla_escalated: 'escalated to the superior',
+  attachment_added: 'added an attachment',
+  erp_synced: 'sent to ERP',
+  erp_sync_failed: 'could not be sent to ERP',
 };
 const TIMELINE_TONE: Record<string, string> = {
   task_approved: 'ok',
@@ -565,7 +565,7 @@ export function RequestPage({ id, onChanged }: { id: string; onChanged: () => vo
   return (
     <div className="page">
       <a className="back" href="#/requests">
-        <ArrowLeft size={16} /> Permintaan saya
+        <ArrowLeft size={16} /> My requests
       </a>
       <RequestDetail id={id} onDecided={async () => onChanged()} />
     </div>
@@ -591,7 +591,7 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
   const [busy, setBusy] = useState('');
   if (loadError) return <ErrorNote>{loadError}</ErrorNote>;
   if (!r) return <Loading />;
-  const name = (uid?: string | null) => (uid ? (r.names[uid] ?? uid) : 'Sistem');
+  const name = (uid?: string | null) => (uid ? (r.names[uid] ?? uid) : 'System');
   const mine = r.tasks.find((t: any) => t.canAct);
   const run = async (label: string, fn: () => Promise<unknown>, after?: () => Promise<unknown> | void) => {
     setBusy(label);
@@ -620,7 +620,7 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
     <article className={`detail ${props.embedded ? 'embedded' : ''}`}>
       <header className="detail-head">
         {props.closeHref ? (
-          <a className="icon-btn detail-close" href={props.closeHref} aria-label="Tutup detail">
+          <a className="icon-btn detail-close" href={props.closeHref} aria-label="Close details">
             <X size={18} />
           </a>
         ) : null}
@@ -631,37 +631,37 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
         <h2>{r.flowName}</h2>
         <p className="detail-meta">
           {requester}
-          {requesterRole ? `, ${requesterRole}` : ''} · diajukan <span className="num">{fmtTime(r.createdAt)}</span> · alur versi {r.flowVersion}
-          {r.round > 1 ? ` · pengajuan ke-${r.round}` : ''}
+          {requesterRole ? `, ${requesterRole}` : ''} · submitted <span className="num">{fmtTime(r.createdAt)}</span> · flow version {r.flowVersion}
+          {r.round > 1 ? ` · submission ${r.round}` : ''}
         </p>
       </header>
 
       {mine ? (
-        <section className="decision" aria-label="Keputusan Anda">
+        <section className="decision" aria-label="Your decision">
           <div className="decision-head">
             <div>
-              <h3>Keputusan Anda</h3>
+              <h3>Your decision</h3>
               <p className="cell-sub">
                 {mine.stepName}
-                {mine.onBehalfOf ? ` · atas nama ${splitName(name(mine.onBehalfOf))[0]}` : ''}
+                {mine.onBehalfOf ? ` · on behalf of ${splitName(name(mine.onBehalfOf))[0]}` : ''}
               </p>
             </div>
             <ToleranceBar createdAt={mine.createdAt} dueAt={mine.dueAt} wide />
           </div>
           <label className="field">
-            <span className="field-label">Komentar {comment ? '' : <span className="optional">opsional untuk setuju, dianjurkan untuk revisi atau tolak</span>}</span>
+            <span className="field-label">Comment {comment ? '' : <span className="optional">optional when approving, recommended for a revision or rejection</span>}</span>
             <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} />
           </label>
           <ErrorNote>{error}</ErrorNote>
           <div className="decision-actions">
             <button className="btn primary" disabled={Boolean(busy)} onClick={() => decide('approve')}>
-              <Check size={16} /> {busy === 'approve' ? 'Menyimpan…' : 'Setujui'}
+              <Check size={16} /> {busy === 'approve' ? 'Saving…' : 'Approve'}
             </button>
             <button className="btn" disabled={Boolean(busy)} onClick={() => decide('request_revision')}>
-              <RotateCcw size={16} /> {busy === 'request_revision' ? 'Menyimpan…' : 'Minta revisi'}
+              <RotateCcw size={16} /> {busy === 'request_revision' ? 'Saving…' : 'Request revision'}
             </button>
             <button className="btn danger" disabled={Boolean(busy)} onClick={() => decide('reject')}>
-              <X size={16} /> {busy === 'reject' ? 'Menyimpan…' : 'Tolak'}
+              <X size={16} /> {busy === 'reject' ? 'Saving…' : 'Reject'}
             </button>
           </div>
         </section>
@@ -675,19 +675,19 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
             run('resubmit', () => api('POST', `/requests/${id}/resubmit`, { data: data ?? r.data }));
           }}
         >
-          <h3>Perbaiki dan kirim ulang</h3>
-          <p className="cell-sub">Lihat komentar approver di riwayat, ubah isian, lalu kirim ulang.</p>
+          <h3>Revise and resubmit</h3>
+          <p className="cell-sub">Read the approver's comments in the history, update the details, then resubmit.</p>
           <DynamicForm fields={r.fields} value={data ?? r.data} onChange={setData} />
           <ErrorNote>{error}</ErrorNote>
           <div className="decision-actions">
             <button className="btn primary" disabled={Boolean(busy)}>
-              {busy === 'resubmit' ? 'Mengirim…' : 'Kirim ulang'}
+              {busy === 'resubmit' ? 'Resubmitting…' : 'Resubmit'}
             </button>
           </div>
         </form>
       ) : null}
 
-      <Section title="Isian">
+      <Section title="Details">
         <dl className="spec">
           {r.fields.map((f: Field) => {
             const v = r.data[f.key];
@@ -695,7 +695,7 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
               <div key={f.key} className={f.type === 'string' && String(v ?? '').length > 24 ? 'span-2' : ''}>
                 <dt>{f.label}</dt>
                 <dd className={f.type === 'number' || f.type === 'date' ? 'num' : ''}>
-                  {v == null || v === '' ? <span className="dim">Tidak diisi</span> : f.type === 'number' ? fmtNumber(v) : f.type === 'date' ? fmtDate(String(v)) : f.type === 'boolean' ? (v ? 'Ya' : 'Tidak') : String(v)}
+                  {v == null || v === '' ? <span className="dim">Not provided</span> : f.type === 'number' ? fmtNumber(v) : f.type === 'date' ? fmtDate(String(v)) : f.type === 'boolean' ? (v ? 'Yes' : 'No') : String(v)}
                 </dd>
               </div>
             );
@@ -704,15 +704,15 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
       </Section>
 
       <Section
-        title={`Lampiran${r.attachments.length ? ` (${r.attachments.length})` : ''}`}
+        title={`Attachments${r.attachments.length ? ` (${r.attachments.length})` : ''}`}
         aside={
           <label className="btn small file-btn">
-            <Paperclip size={14} /> {busy === 'upload' ? 'Mengunggah…' : 'Tambah'}
+            <Paperclip size={14} /> {busy === 'upload' ? 'Uploading…' : 'Add'}
             <input type="file" onChange={(e) => upload(e.target.files?.[0])} />
           </label>
         }
       >
-        {r.attachments.length === 0 ? <p className="dim small">Belum ada lampiran.</p> : null}
+        {r.attachments.length === 0 ? <p className="dim small">No attachments yet.</p> : null}
         <ul className="files">
           {r.attachments.map((a: any) => (
             <li key={a.id}>
@@ -724,7 +724,7 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
         </ul>
       </Section>
 
-      <Section title="Langkah approval">
+      <Section title="Approval steps">
         <ol className="steps">
           {r.tasks.map((t: any) => (
             <li key={t.id} className={`step ${t.status}`}>
@@ -735,8 +735,8 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
                   <Badge status={t.status} />
                 </div>
                 <div className="cell-sub">
-                  {t.actedBy ? splitName(name(t.actedBy))[0] : t.assignees.map((u: string) => splitName(name(u))[0]).join(' atau ')}
-                  {t.onBehalfOf ? ` (atas nama ${splitName(name(t.onBehalfOf))[0]})` : ''}
+                  {t.actedBy ? splitName(name(t.actedBy))[0] : t.assignees.map((u: string) => splitName(name(u))[0]).join(' or ')}
+                  {t.onBehalfOf ? ` (on behalf of ${splitName(name(t.onBehalfOf))[0]})` : ''}
                   {t.actedAt ? (
                     <>
                       {' · '}
@@ -744,7 +744,7 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
                     </>
                   ) : null}
                 </div>
-                {t.basis ? <div className="basis">Ditunjuk sebagai {t.basis}</div> : null}
+                {t.basis ? <div className="basis">Assigned as {t.basis}</div> : null}
                 {t.status === 'open' && t.dueAt ? <ToleranceBar createdAt={t.createdAt} dueAt={t.dueAt} /> : null}
               </div>
             </li>
@@ -752,18 +752,18 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
         </ol>
       </Section>
 
-      <Section title="Riwayat">
+      <Section title="History">
         <ol className="timeline">
           {r.timeline.map((e: any) => (
             <li key={e.seq} className={TIMELINE_TONE[e.action] ?? ''}>
               <time className="num">{fmtTime(e.at)}</time>
               <div>
-                <strong>{e.actorType === 'user' ? splitName(name(e.actorId))[0] : 'Sistem'}</strong> {ACTION[e.action] ?? e.action}
+                <strong>{e.actorType === 'user' ? splitName(name(e.actorId))[0] : 'System'}</strong> {ACTION[e.action] ?? e.action}
                 {e.stepName ? <span className="dim"> · {e.stepName}</span> : null}
-                {e.action === 'task_created' || e.action === 'task_reassigned' ? ` ${e.detail.assignees.map((u: string) => splitName(name(u))[0]).join(' atau ')}` : ''}
+                {e.action === 'task_created' || e.action === 'task_reassigned' ? ` ${e.detail.assignees.map((u: string) => splitName(name(u))[0]).join(' or ')}` : ''}
                 {e.detail?.basis ? <span className="dim"> ({e.detail.basis})</span> : ''}
-                {e.detail?.onBehalfOf ? ` atas nama ${splitName(name(e.detail.onBehalfOf))[0]}` : ''}
-                {e.detail?.delegatedBy ? <span className="dim"> (delegasi dibuat oleh {splitName(name(e.detail.delegatedBy))[0]})</span> : ''}
+                {e.detail?.onBehalfOf ? ` on behalf of ${splitName(name(e.detail.onBehalfOf))[0]}` : ''}
+                {e.detail?.delegatedBy ? <span className="dim"> (delegation created by {splitName(name(e.detail.delegatedBy))[0]})</span> : ''}
                 {e.detail?.reference ? <span className="num"> {e.detail.reference}</span> : ''}
                 {e.detail?.comment ? <blockquote>{e.detail.comment}</blockquote> : null}
               </div>
@@ -776,17 +776,6 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
 }
 
 /* ---------- Delegasi ---------- */
-
-/**
- * Konfirmasi tanggal-waktu dalam format Indonesia 24 jam. Input bawaan browser memakai bahasa tampilan
- * browser (sering bahasa Inggris), jadi teks ini memastikan arti pilihan tanpa mengganti pemilih bawaan.
- */
-const fmtLocal = (v: string) => {
-  const d = new Date(v);
-  return Number.isNaN(d.getTime())
-    ? 'Tanggal belum valid'
-    : d.toLocaleString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
-};
 
 const localInput = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 
@@ -816,27 +805,27 @@ export function Delegations({ me }: { me: Me }) {
   const now = Date.now();
   return (
     <div className="page">
-      <PageHead title="Delegasi" sub="Alihkan approval sementara saat Anda atau bawahan Anda berhalangan. Semua keputusan tetap tercatat atas nama pemilik tugas." />
+      <PageHead title="Delegations" sub="Hand over approvals temporarily while you or someone on your team is away. Every decision is still recorded on behalf of the task owner." />
       <div className="two-col">
         <section>
           <ErrorNote>{loadError}</ErrorNote>
           {!list && !loadError ? <Loading /> : null}
-          {list?.length === 0 ? <Empty title="Tidak ada delegasi aktif atau terjadwal" /> : null}
+          {list?.length === 0 ? <Empty title="No active or scheduled delegations" /> : null}
           {list?.length ? (
             <div className="table-wrap">
               <table className="table static">
                 <thead>
                   <tr>
-                    <th>Dari</th>
-                    <th>Kepada</th>
-                    <th>Periode</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Period</th>
                     <th>Status</th>
-                    <th aria-label="Aksi" />
+                    <th aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
                   {list.map((d) => {
-                    const state = Date.parse(d.starts_at) > now ? 'Terjadwal' : 'Aktif';
+                    const state = Date.parse(d.starts_at) > now ? 'Scheduled' : 'Active';
                     return (
                       <tr key={d.id}>
                         <td>
@@ -847,15 +836,15 @@ export function Delegations({ me }: { me: Me }) {
                         </td>
                         <td className="num">
                           {fmtTime(d.starts_at)} – {fmtTime(d.ends_at)}
-                          {d.created_by && d.created_by !== d.from_user_id ? <div className="cell-sub">dibuat oleh {splitName(d.created_by_name)[0]}</div> : null}
+                          {d.created_by && d.created_by !== d.from_user_id ? <div className="cell-sub">created by {splitName(d.created_by_name)[0]}</div> : null}
                         </td>
                         <td>
-                          <Badge status={state === 'Aktif' ? 'active' : 'open'} label={state} />
+                          <Badge status={state === 'Active' ? 'active' : 'open'} label={state} />
                         </td>
                         <td className="col-action">
                           {d.from_user_id === me.id || d.created_by === me.id ? (
                             <button className="btn small danger" onClick={() => api('DELETE', `/delegations/${d.id}`).then(reload)}>
-                              Cabut
+                              Revoke
                             </button>
                           ) : null}
                         </td>
@@ -868,24 +857,24 @@ export function Delegations({ me }: { me: Me }) {
           ) : null}
         </section>
         <form className="sheet" onSubmit={submit}>
-          <h2>Buat delegasi</h2>
+          <h2>New delegation</h2>
           {reports?.length ? (
             <label className="field">
-              <span className="field-label">Approval milik</span>
+              <span className="field-label">Approvals of</span>
               <select value={from} onChange={(e) => setFrom(e.target.value)}>
-                <option value="">Saya sendiri</option>
+                <option value="">Myself</option>
                 {reports.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name}, bawahan yang berhalangan
+                    {u.name}, team member who is away
                   </option>
                 ))}
               </select>
             </label>
           ) : null}
           <label className="field">
-            <span className="field-label">Kepada</span>
+            <span className="field-label">To</span>
             <select value={to} onChange={(e) => setTo(e.target.value)} required>
-              <option value="">Pilih rekan</option>
+              <option value="">Select a colleague</option>
               {users
                 ?.filter((u) => u.id !== (from || me.id))
                 .map((u) => (
@@ -897,20 +886,18 @@ export function Delegations({ me }: { me: Me }) {
           </label>
           <div className="form-grid">
             <label className="field">
-              <span className="field-label">Mulai</span>
+              <span className="field-label">Starts</span>
               <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} required />
-              <span className="field-hint">Terbaca sebagai {fmtLocal(start)}</span>
             </label>
             <label className="field">
-              <span className="field-label">Selesai</span>
+              <span className="field-label">Ends</span>
               <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} required />
-              <span className="field-hint">Terbaca sebagai {fmtLocal(end)}</span>
             </label>
           </div>
           <ErrorNote>{error}</ErrorNote>
-          {saved ? <p className="ok-note">Delegasi tersimpan.</p> : null}
+          {saved ? <p className="ok-note">Delegation saved.</p> : null}
           <div className="form-actions">
-            <button className="btn primary">Simpan delegasi</button>
+            <button className="btn primary">Save delegation</button>
           </div>
         </form>
       </div>
@@ -927,16 +914,16 @@ export function Notifications({ onRead }: { onRead: () => void }) {
   }, [list]);
   return (
     <div className="page narrow">
-      <PageHead title="Notifikasi" sub="50 terakhir. Ditandai terbaca saat halaman ini dibuka." />
+      <PageHead title="Notifications" sub="The latest 50. They are marked as read when you open this page." />
       <ErrorNote>{error}</ErrorNote>
       {!list && !error ? <Loading /> : null}
-      {list?.length === 0 ? <Empty title="Belum ada notifikasi" /> : null}
+      {list?.length === 0 ? <Empty title="No notifications yet" /> : null}
       {list?.length ? (
         <ul className="notes">
           {list.map((n) => (
             <li key={n.id}>
               <a className={`note ${n.read_at ? '' : 'unread'}`} href={n.request_id ? `#/r/${n.request_id}` : '#/admin'}>
-                <span className="note-dot" aria-label={n.read_at ? undefined : 'Belum dibaca'} />
+                <span className="note-dot" aria-label={n.read_at ? undefined : 'Unread'} />
                 <span className="note-text">{n.message}</span>
                 <time className="num">{fmtTime(n.created_at)}</time>
               </a>

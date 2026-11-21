@@ -65,42 +65,42 @@ export function Editor({ id, me }: { id: string; me: Me }) {
   return (
     <div className="editor">
       <div className="editor-bar">
-        <a className="icon-btn" href="#/admin" aria-label="Kembali ke daftar alur" title="Daftar alur">
+        <a className="icon-btn" href="#/admin" aria-label="Back to flow list" title="Flow list">
           <ArrowLeft size={18} />
         </a>
-        <input className="flow-name" value={def.name} disabled={readOnly} onChange={(e) => change({ ...def, name: e.target.value })} aria-label="Nama alur" />
+        <input className="flow-name" value={def.name} disabled={readOnly} onChange={(e) => change({ ...def, name: e.target.value })} aria-label="Flow name" />
         <span className="num version-n">v{version.version}</span>
         <Badge status={version.status} label={STATUS_LABEL[version.status]} />
         <span className="grow" />
         {readOnly ? (
-          <span className="cell-sub">{version.status === 'draft' ? 'Hanya baca' : `Berlaku sejak ${fmtDate(version.effectiveFrom)}`}</span>
+          <span className="cell-sub">{version.status === 'draft' ? 'Read only' : `Effective from ${fmtDate(version.effectiveFrom)}`}</span>
         ) : (
           <>
-            <button className="btn" disabled={!dirty} onClick={() => run(save, 'Draf tersimpan.')}>
-              {dirty ? 'Simpan draf' : 'Tersimpan'}
+            <button className="btn" disabled={!dirty} onClick={() => run(save, 'Draft saved.')}>
+              {dirty ? 'Save draft' : 'Saved'}
             </button>
             {version.canActivate ? (
               <>
                 <label className="inline-field">
-                  <span>Berlaku</span>
+                  <span>Effective from</span>
                   <input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} />
                 </label>
                 <button
                   className="btn primary"
                   disabled={dirty || errors.length > 0}
-                  onClick={() => run(() => api('POST', `/admin/drafts/${id}/activate`, { effectiveFrom: new Date(`${effective}T00:00:00`).toISOString() }), 'Alur diaktifkan.')}
+                  onClick={() => run(() => api('POST', `/admin/drafts/${id}/activate`, { effectiveFrom: new Date(`${effective}T00:00:00`).toISOString() }), 'Flow activated.')}
                 >
-                  Setujui dan aktifkan
+                  Approve and activate
                 </button>
               </>
             ) : (
               <button
                 className="btn primary"
                 disabled={errors.length > 0}
-                title="Anda ikut menyusun draf ini, jadi pengaktifan harus oleh pemilik proses lain"
-                onClick={() => run(async () => { await save(); await api('POST', `/admin/drafts/${id}/submit`); }, 'Diajukan ke pemilik proses lain untuk ditinjau.')}
+                title="You edited this draft, so another process owner must activate it"
+                onClick={() => run(async () => { await save(); await api('POST', `/admin/drafts/${id}/submit`); }, 'Submitted to the other process owners for review.')}
               >
-                Ajukan untuk ditinjau
+                Submit for review
               </button>
             )}
           </>
@@ -130,11 +130,11 @@ export function Editor({ id, me }: { id: string; me: Me }) {
           <nav className="side-tabs">
             {(
               [
-                ['chat', 'Chat AI'],
-                ['step', 'Langkah'],
-                ['tables', `Tabel aturan (${def.tables.length})`],
-                ['sim', 'Simulasi'],
-                ['issues', `Pemeriksaan${errors.length ? ` (${errors.length})` : ''}`],
+                ['chat', 'AI chat'],
+                ['step', 'Step'],
+                ['tables', `Rule tables (${def.tables.length})`],
+                ['sim', 'Simulation'],
+                ['issues', `Checks${errors.length ? ` (${errors.length})` : ''}`],
               ] as [Tab, string][]
             ).map(([key, label]) => (
               <button key={key} className={tab === key ? 'on' : ''} onClick={() => setTab(key)}>
@@ -160,7 +160,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
               />
             ) : (
               <div className="panel">
-                <p className="dim">Pilih langkah di diagram, atau tekan + di antara langkah untuk menambah.</p>
+                <p className="dim">Select a step in the diagram, or press + between steps to add one.</p>
               </div>
             )
           ) : null}
@@ -169,7 +169,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
           {tab === 'issues' ? (
             <div className="panel">
               <label className="field">
-                <span className="field-label">Tautan SOP sumber</span>
+                <span className="field-label">Source SOP link</span>
                 <input
                   value={sopUrl}
                   disabled={readOnly}
@@ -180,17 +180,23 @@ export function Editor({ id, me }: { id: string; me: Me }) {
                   }}
                 />
               </label>
-              {!sopUrl ? <p className="check-row bad">Tautan SOP wajib diisi sebelum alur bisa diaktifkan.</p> : null}
-              {issues.length === 0 ? <p className="check-row ok">Definisi lolos pemeriksaan: tidak ada jalur tanpa approval, semua rujukan valid.</p> : null}
+              {!sopUrl ? <p className="check-row bad">Add the SOP link before this flow can be activated.</p> : null}
+              {issues.length === 0 ? <p className="check-row ok">The definition passed all checks: every path has an approval and all references are valid.</p> : null}
               {issues.map((i, n) => (
                 <p key={n} className={`check-row ${i.level === 'error' ? 'bad' : 'warn'}`}>
                   {i.message}
                 </p>
               ))}
               <p className="dim small">
-                Disusun oleh: {version.editedBy.map((uid: string) => people[uid] ?? uid).join(', ')}. {version.canActivate ? 'Anda bisa mengaktifkan draf ini.' : readOnly ? '' : 'Anda ikut menyusun, jadi pengaktifan harus oleh pemilik proses lain di alur ini.'}
+                Edited by: {version.editedBy.map((uid: string) => people[uid] ?? uid).join(', ')}. {version.canActivate
+                  ? me.isAdmin && version.editedBy.includes(me.id)
+                    ? 'You can activate this draft. Because you edited it, activation is recorded as an administrator override.'
+                    : 'You can activate this draft.'
+                  : readOnly
+                    ? ''
+                    : 'You edited this draft, so another process owner of this flow must activate it.'}
               </p>
-              <h4>Bidang isian permintaan</h4>
+              <h4>Request fields</h4>
               <dl className="spec">
                 {def.fields.map((f) => (
                   <div key={f.key}>

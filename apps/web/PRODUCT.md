@@ -40,7 +40,9 @@ Alur approval adalah definisi berversi yang dimiliki pemilik proses, dirujuk ke 
 
 - Stack: React 18 + Vite (`apps/web`), Cloudflare Worker + Hono + D1 + R2 (`apps/api`), mesin alur murni di `packages/engine`. Diagram memakai `@xyflow/react`.
 - Routing berbasis hash. Satu SPA melayani semua peran, dan menu Alur hanya tampil untuk admin atau pemilik proses.
-- Bahasa antarmuka: Bahasa Indonesia. Format angka dan tanggal memakai `id-ID`.
+- Bahasa antarmuka: bahasa Inggris profesional (layar, pesan error, notifikasi). Tanggal memakai `en-GB`, angka `en-US`. Data yang ditulis pengguna (nama alur, langkah, alasan) tetap apa adanya.
+- Semua fitur juga tersedia lewat server MCP di `/mcp` dengan login OAuth; tiap tool berjalan dengan hak akses pengguna yang sama.
+- Fase awal dipakai tim IT: admin sistem boleh mengubah dan mengaktifkan semuanya sendiri, dan tindakan tanpa peninjau kedua ditandai di audit.
 - Status inti: draf, terbuka/berjalan, disetujui, ditolak, diminta revisi, aktif (versi alur).
 - Skala 100–500 karyawan berarti daftar bisa panjang. Filter, pencarian, dan aksi massal belum ada dan belum diputuskan.
 - Masih PoC. Akun contoh ada di data seed (`apps/api/scripts/seed.ts`).

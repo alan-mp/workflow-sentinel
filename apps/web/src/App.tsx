@@ -65,16 +65,16 @@ export function App() {
   };
 
   const work: NavItem[] = [
-    { key: 'inbox', label: 'Kotak masuk', short: 'Masuk', icon: <InboxIcon size={18} />, count: counts.inbox },
-    { key: 'requests', label: 'Permintaan saya', short: 'Permintaan', icon: <FileText size={18} /> },
-    { key: 'new', label: 'Buat permintaan', short: 'Buat', icon: <FilePlus2 size={18} /> },
-    { key: 'delegations', label: 'Delegasi', short: 'Delegasi', icon: <Users size={18} /> },
-    { key: 'notifications', label: 'Notifikasi', short: 'Notifikasi', icon: <Bell size={18} />, count: counts.unread },
+    { key: 'inbox', label: 'Inbox', short: 'Inbox', icon: <InboxIcon size={18} />, count: counts.inbox },
+    { key: 'requests', label: 'My requests', short: 'Requests', icon: <FileText size={18} /> },
+    { key: 'new', label: 'New request', short: 'New', icon: <FilePlus2 size={18} /> },
+    { key: 'delegations', label: 'Delegations', short: 'Delegations', icon: <Users size={18} /> },
+    { key: 'notifications', label: 'Notifications', short: 'Notifications', icon: <Bell size={18} />, count: counts.unread },
   ];
   const seesOrg = manages || Boolean(me.ownsOrg);
   const manage: NavItem[] = [
-    ...(manages ? [{ key: 'admin', label: 'Alur approval', short: 'Alur', icon: <Workflow size={18} /> }] : []),
-    ...(seesOrg ? [{ key: 'org', label: 'Organisasi', short: 'Organisasi', icon: <Network size={18} /> }] : []),
+    ...(manages ? [{ key: 'admin', label: 'Approval flows', short: 'Flows', icon: <Workflow size={18} /> }] : []),
+    ...(seesOrg ? [{ key: 'org', label: 'Organization', short: 'Organization', icon: <Network size={18} /> }] : []),
   ];
   const current = page === 'r' ? 'requests' : page;
 
@@ -116,21 +116,21 @@ export function App() {
           }}
         >
           <Search size={16} aria-hidden="true" />
-          <input type="search" placeholder="Cari nomor REQ, pemohon, atau alur" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Cari" />
+          <input type="search" placeholder="Search by REQ number, requester, or flow" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search" />
         </form>
         <div className="appbar-user">
-          <Person name={me.name} sub={me.isAdmin ? 'Admin sistem' : undefined} />
-          <button className="icon-btn on-blue" onClick={logout} title="Keluar" aria-label="Keluar">
+          <Person name={me.name} sub={me.isAdmin ? 'System administrator' : undefined} />
+          <button className="icon-btn on-blue" onClick={logout} title="Sign out" aria-label="Sign out">
             <LogOut size={18} />
           </button>
         </div>
       </header>
       {editing ? null : (
-        <nav className="sidebar" aria-label="Navigasi utama">
+        <nav className="sidebar" aria-label="Main navigation">
           <div className="nav-group">{work.map(navLink)}</div>
           {manage.length ? (
             <div className="nav-group">
-              <p className="nav-heading">Pengelolaan</p>
+              <p className="nav-heading">Administration</p>
               {manage.map(navLink)}
             </div>
           ) : null}
@@ -138,7 +138,7 @@ export function App() {
       )}
       <main className="main">{body}</main>
       {editing ? null : (
-        <nav className="tabbar" aria-label="Navigasi utama">
+        <nav className="tabbar" aria-label="Main navigation">
           {[...work.filter((i) => i.key !== 'new'), ...manage].map((item) => (
             <a key={item.key} href={`#/${item.key}`} className={current === item.key ? 'on' : ''} aria-current={current === item.key ? 'page' : undefined}>
               <span className="tab-icon">

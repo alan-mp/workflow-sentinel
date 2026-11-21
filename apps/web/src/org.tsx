@@ -58,18 +58,18 @@ interface Org {
 }
 
 const TABS: [string, string][] = [
-  ['pohon', 'Pohon'],
-  ['karyawan', 'Karyawan'],
-  ['wewenang', 'Matriks wewenang'],
-  ['pengecualian', 'Pengecualian'],
-  ['perubahan', 'Perubahan'],
-  ['cakupan', 'Uji cakupan'],
+  ['pohon', 'Tree'],
+  ['karyawan', 'People'],
+  ['wewenang', 'Authority matrix'],
+  ['pengecualian', 'Reporting exceptions'],
+  ['perubahan', 'Changes'],
+  ['cakupan', 'Coverage test'],
 ];
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 const short = (name?: string) => (name ? splitName(name)[0] : '-');
 
 /** Formulir usulan: setiap perubahan butuh catatan opsional dan tanggal berlaku, lalu menunggu tinjauan orang kedua. */
-function Propose(props: { change: () => object | string; label: string; onDone: () => void; disabled?: boolean; children?: ReactNode }) {
+function Propose(props: { change: () => object | string; label: string; onDone: (res?: any) => void; disabled?: boolean; children?: ReactNode }) {
   const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [error, setError] = useState('');
@@ -81,9 +81,9 @@ function Propose(props: { change: () => object | string; label: string; onDone: 
     setBusy(true);
     setError('');
     try {
-      await api('POST', '/org/changes', { change, note, effectiveFrom: date > today() ? new Date(`${date}T00:00:00`).toISOString() : undefined });
+      const res = await api('POST', '/org/changes', { change, note, effectiveFrom: date > today() ? new Date(`${date}T00:00:00`).toISOString() : undefined });
       setNote('');
-      props.onDone();
+      props.onDone(res);
     } catch (err: any) {
       setError(err.message);
     }
@@ -94,12 +94,12 @@ function Propose(props: { change: () => object | string; label: string; onDone: 
       {props.children}
       <div className="form-grid">
         <label className="field">
-          <span className="field-label">Berlaku mulai</span>
+          <span className="field-label">Effective from</span>
           <input type="date" value={date} min={today()} onChange={(e) => setDate(e.target.value)} required />
         </label>
         <label className="field">
           <span className="field-label">
-            Catatan untuk peninjau <span className="optional">opsional</span>
+            Note for the reviewer <span className="optional">optional</span>
           </span>
           <input value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
@@ -107,7 +107,7 @@ function Propose(props: { change: () => object | string; label: string; onDone: 
       <ErrorNote>{error}</ErrorNote>
       <div className="form-actions">
         <button className="btn primary" disabled={busy || props.disabled}>
-          {busy ? 'Mengirim…' : props.label}
+          {busy ? 'Submitting…' : props.label}
         </button>
       </div>
     </form>
@@ -123,11 +123,11 @@ const Mark = ({ findings }: { findings: Finding[] }) =>
 
 export function Organization({ tab = 'pohon', selected }: { tab?: string; selected?: string }) {
   const [org, reload, error] = useLoad<Org>('/org');
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState<'' | 'pending' | 'applied' | 'scheduled'>('');
   if (error) return <div className="page"><ErrorNote>{error}</ErrorNote></div>;
   if (!org) return <Loading />;
-  const done = () => {
-    setSent(true);
+  const done = (res?: any) => {
+    setSent(res?.status ?? 'pending');
     reload();
   };
   const errors = org.findings.filter((f) => f.level === 'error').length;
@@ -137,40 +137,40 @@ export function Organization({ tab = 'pohon', selected }: { tab?: string; select
     <div className="org">
       <div className="org-head">
         <PageHead
-          title="Organisasi"
+          title="Organization"
           sub={
-            org.canEdit
-              ? 'Atasan dihitung dari pohon unit, wewenang dari matriks. Setiap perubahan Anda usulkan, lalu ditinjau pemilik organisasi lain sebelum berlaku.'
-              : org.isAdmin
-                ? 'Anda admin sistem: menunjuk pemilik master organisasi dan mengimpor isi awal. Perubahan struktur dilakukan pemiliknya.'
-                : 'Struktur dan wewenang yang dipakai alur approval. Hanya pemilik master organisasi yang bisa mengubahnya.'
+            org.isAdmin
+              ? 'You are a system administrator: your changes apply immediately and are recorded as an administrator override.'
+              : org.canEdit
+                ? 'Superiors are derived from the unit tree, and authority from the matrix. You propose each change, and another organization owner reviews it before it takes effect.'
+                : 'The structure and authorities used by approval flows. Only organization owners can change them.'
           }
         />
-        <div className="gauge" role="group" aria-label="Kesehatan struktur">
+        <div className="gauge" role="group" aria-label="Structure health">
           <a className="gauge-seg out" href="#/org/pohon">
-            <span className="gauge-n">{errors}</span> Routing bisa buntu
+            <span className="gauge-n">{errors}</span> Routing may dead-end
           </a>
           <a className="gauge-seg near" href="#/org/pohon">
-            <span className="gauge-n">{warnings}</span> Perlu perhatian
+            <span className="gauge-n">{warnings}</span> Needs attention
           </a>
           <a className="gauge-seg" href="#/org/perubahan">
-            <span className="gauge-n">{org.pending}</span> Usulan menunggu
+            <span className="gauge-n">{org.pending}</span> Pending proposals
           </a>
           <span className="gauge-seg static">
-            <span className="gauge-n">{org.users.length}</span> orang di {org.units.length} unit
+            <span className="gauge-n">{org.users.length}</span> people in {org.units.length} units
           </span>
         </div>
         {sent ? (
           <div className="notice ok" role="status">
-            Usulan terkirim. Perubahan baru berlaku setelah disetujui pemilik organisasi lain.{' '}
-            <a href="#/org/perubahan">Lihat usulan</a>
-            <button className="icon-btn" onClick={() => setSent(false)} aria-label="Tutup">
+            {sent === 'applied' ? 'Change applied immediately and recorded as an administrator override.' : sent === 'scheduled' ? 'Change scheduled and recorded as an administrator override.' : 'Proposal submitted. The change takes effect after another organization owner approves it.'}{' '}
+            <a href="#/org/perubahan">View proposals</a>
+            <button className="icon-btn" onClick={() => setSent('')} aria-label="Dismiss">
               <X size={16} />
             </button>
           </div>
         ) : null}
-        <nav className="side-tabs org-tabs" aria-label="Bagian organisasi">
-          {[...TABS, ...(org.isAdmin ? [['pengaturan', 'Pengaturan'] as [string, string]] : [])].map(([key, label]) => (
+        <nav className="side-tabs org-tabs" aria-label="Organization sections">
+          {[...TABS, ...(org.isAdmin ? [['pengaturan', 'Settings'] as [string, string]] : [])].map(([key, label]) => (
             <a key={key} href={`#/org/${key}`} className={tab === key ? 'on' : ''} aria-current={tab === key ? 'page' : undefined}>
               {label}
               {key === 'perubahan' && org.pending ? <span className="nav-count">{org.pending}</span> : null}
@@ -189,7 +189,7 @@ export function Organization({ tab = 'pohon', selected }: { tab?: string; select
   );
 }
 
-type TabProps = { org: Org; done: () => void; selected?: string };
+type TabProps = { org: Org; done: (res?: any) => void; selected?: string };
 
 /* ---------- Pohon ---------- */
 
@@ -197,7 +197,7 @@ function Tree({ org, done, selected }: TabProps) {
   const [q, setQ] = useState('');
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const users = useMemo(() => new Map(org.users.map((u) => [u.id, u])), [org]);
-  const children = (parentId?: string) => org.units.filter((u) => (u.parentId ?? undefined) === parentId).sort((a, b) => a.name.localeCompare(b.name, 'id'));
+  const children = (parentId?: string) => org.units.filter((u) => (u.parentId ?? undefined) === parentId).sort((a, b) => a.name.localeCompare(b.name, 'en'));
   const members = (unitId: string) => org.users.filter((u) => u.unitId === unitId);
   const unplaced = org.users.filter((u) => !u.unitId || !org.units.some((x) => x.id === u.unitId));
   const term = q.trim().toLowerCase();
@@ -225,7 +225,7 @@ function Tree({ org, done, selected }: TabProps) {
     return (
       <li key={unit.id}>
         <div className={`tree-row unit ${selected === unit.id ? 'selected' : ''}`} style={{ paddingLeft: `${0.5 + depth * 1.4}rem` }}>
-          <button className="icon-btn tree-toggle" onClick={toggle} aria-label={open ? `Tutup ${unit.name}` : `Buka ${unit.name}`} aria-expanded={open} disabled={kids.length + people.length === 0}>
+          <button className="icon-btn tree-toggle" onClick={toggle} aria-label={open ? `Collapse ${unit.name}` : `Expand ${unit.name}`} aria-expanded={open} disabled={kids.length + people.length === 0}>
             {kids.length + people.length === 0 ? null : open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
           <a className="tree-main" href={`#/org/pohon/${unit.id}`}>
@@ -234,7 +234,7 @@ function Tree({ org, done, selected }: TabProps) {
             <Mark findings={marks} />
           </a>
           <span className="tree-head">
-            {head ? <Person name={head.name} sub={head.title ?? 'Kepala'} compact={false} /> : acting ? <Person name={acting.name} sub={`Plt sampai ${fmtDate(unit.actingUntil)}`} /> : <span className="badge bad">Kepala kosong</span>}
+            {head ? <Person name={head.name} sub={head.title ?? 'Head'} compact={false} /> : acting ? <Person name={acting.name} sub={`Acting head until ${fmtDate(unit.actingUntil)}`} /> : <span className="badge bad">No head</span>}
           </span>
           <span className="tree-count num">{members(unit.id).length}</span>
         </div>
@@ -252,9 +252,9 @@ function Tree({ org, done, selected }: TabProps) {
                           {a.name}
                         </span>
                       ))}
-                      {activeException(m.id) ? <span className="tag warn">Pengecualian</span> : null}
+                      {activeException(m.id) ? <span className="tag warn">Reporting exception</span> : null}
                     </span>
-                    {org.loads[m.id] ? <span className="tree-count num" title="Tugas terbuka">{org.loads[m.id]}</span> : <span className="tree-count" />}
+                    {org.loads[m.id] ? <span className="tree-count num" title="Open tasks">{org.loads[m.id]}</span> : <span className="tree-count" />}
                   </a>
                 </li>
               ))}
@@ -269,21 +269,21 @@ function Tree({ org, done, selected }: TabProps) {
   const person = org.users.find((u) => u.id === selected);
   return (
     <div className={`split org-split ${unit || person ? 'has-detail' : ''}`}>
-      <section className="split-list" aria-label="Pohon organisasi">
+      <section className="split-list" aria-label="Organization tree">
         <div className="toolbar">
-          <input className="grow" type="search" placeholder="Cari unit, nama, atau jabatan" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Cari di pohon" />
+          <input className="grow" type="search" placeholder="Search by unit, name, or title" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search the tree" />
           <button className="btn" onClick={() => setClosed(closed.size ? new Set() : new Set(org.units.map((u) => u.id)))}>
-            {closed.size ? 'Buka semua' : 'Tutup semua'}
+            {closed.size ? 'Expand all' : 'Collapse all'}
           </button>
         </div>
         {org.units.length === 0 ? (
-          <Empty title="Belum ada unit organisasi">Admin sistem mengimpor daftar unit di tab Pengaturan, atau pemilik organisasi menambah unit puncak di panel kanan.</Empty>
+          <Empty title="No organization units yet">A system administrator can import the unit list on the Settings tab, or an organization owner can add a top-level unit in the panel on the right.</Empty>
         ) : (
           <div className="tree" role="tree">
             <div className="tree-cols">
-              <span>Unit dan anggota</span>
-              <span>Kepala</span>
-              <span>Orang</span>
+              <span>Unit and members</span>
+              <span>Head</span>
+              <span>People</span>
             </div>
             <ul className="tree-list">{children(undefined).map((u) => row(u, 0))}</ul>
           </div>
@@ -291,7 +291,7 @@ function Tree({ org, done, selected }: TabProps) {
         {unplaced.length ? (
           <div className="tree unplaced">
             <div className="tree-cols">
-              <span>Belum ditempatkan di unit ({unplaced.length})</span>
+              <span>Not placed in a unit ({unplaced.length})</span>
             </div>
             <ul className="tree-list">
               {unplaced
@@ -300,7 +300,7 @@ function Tree({ org, done, selected }: TabProps) {
                   <li key={m.id}>
                     <a className={`tree-row person-row ${selected === m.id ? 'selected' : ''}`} href={`#/org/pohon/${m.id}`}>
                       <Person name={m.name} sub={m.title} />
-                      <span className="badge bad">Tanpa jalur approval</span>
+                      <span className="badge bad">No approval path</span>
                     </a>
                   </li>
                 ))}
@@ -308,19 +308,19 @@ function Tree({ org, done, selected }: TabProps) {
           </div>
         ) : null}
       </section>
-      <section className={`split-detail ${unit || person ? '' : 'placeholder'}`} aria-label="Detail">
+      <section className={`split-detail ${unit || person ? '' : 'placeholder'}`} aria-label="Details">
         {unit ? <UnitDetail key={unit.id} unit={unit} org={org} done={done} /> : person ? <PersonDetail key={person.id} person={person} org={org} done={done} /> : <RootPanel org={org} done={done} />}
       </section>
     </div>
   );
 }
 
-function RootPanel({ org, done }: { org: Org; done: () => void }) {
+function RootPanel({ org, done }: { org: Org; done: (res?: any) => void }) {
   const general = org.findings.filter((f) => !f.unitId && !f.userId);
   return (
     <div className="org-root">
-      <p>Pilih unit atau orang untuk melihat detail{org.canEdit ? ' dan mengusulkan perubahan' : ''}.</p>
-      {general.length ? <h3>Temuan wewenang</h3> : null}
+      <p>Select a unit or person to see details{org.canEdit ? ' and propose changes' : ''}.</p>
+      {general.length ? <h3>Authority findings</h3> : null}
       {general.length ? (
         <ul className="finding-list">
           {general.map((f, i) => (
@@ -335,20 +335,20 @@ function RootPanel({ org, done }: { org: Org; done: () => void }) {
   );
 }
 
-function UnitForm({ org, done, parent, unit }: { org: Org; done: () => void; parent?: Unit; unit?: Unit }) {
+function UnitForm({ org, done, parent, unit }: { org: Org; done: (res?: any) => void; parent?: Unit; unit?: Unit }) {
   const [name, setName] = useState(unit?.name ?? '');
   const below = parent ? UNIT_LEVELS.slice(UNIT_LEVELS.indexOf(parent.level) + 1) : [...UNIT_LEVELS];
   const [level, setLevel] = useState<UnitLevel>(unit?.level ?? below[0] ?? 'seksi');
   const [parentId, setParentId] = useState(unit ? (unit.parentId ?? '') : (parent?.id ?? ''));
   return (
-    <Propose label={unit ? 'Usulkan perubahan unit' : 'Usulkan unit baru'} onDone={done} change={() => ({ kind: 'unit_upsert', id: unit?.id, name, level, parentId: parentId || null })}>
+    <Propose label={unit ? 'Propose unit change' : 'Propose new unit'} onDone={done} change={() => ({ kind: 'unit_upsert', id: unit?.id, name, level, parentId: parentId || null })}>
       <label className="field">
-        <span className="field-label">Nama unit</span>
+        <span className="field-label">Unit name</span>
         <input value={name} onChange={(e) => setName(e.target.value)} required />
       </label>
       <div className="form-grid">
         <label className="field">
-          <span className="field-label">Tingkat</span>
+          <span className="field-label">Level</span>
           <select value={level} onChange={(e) => setLevel(e.target.value as UnitLevel)}>
             {(unit ? UNIT_LEVELS : below).map((l) => (
               <option key={l} value={l}>
@@ -358,9 +358,9 @@ function UnitForm({ org, done, parent, unit }: { org: Org; done: () => void; par
           </select>
         </label>
         <label className="field">
-          <span className="field-label">Unit induk</span>
+          <span className="field-label">Parent unit</span>
           <select value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={Boolean(parent)}>
-            <option value="">Tidak ada (puncak)</option>
+            <option value="">None (top level)</option>
             {org.units
               .filter((u) => u.id !== unit?.id)
               .map((u) => (
@@ -375,7 +375,7 @@ function UnitForm({ org, done, parent, unit }: { org: Org; done: () => void; par
   );
 }
 
-function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => void }) {
+function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: (res?: any) => void }) {
   const [mode, setMode] = useState<'' | 'head' | 'child' | 'edit' | 'delete'>('');
   const members = org.users.filter((u) => u.unitId === unit.id);
   const parent = org.units.find((u) => u.id === unit.parentId);
@@ -389,16 +389,16 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
   return (
     <article className="detail embedded">
       <header className="detail-head">
-        <a className="icon-btn detail-close" href="#/org/pohon" aria-label="Tutup detail">
+        <a className="icon-btn detail-close" href="#/org/pohon" aria-label="Close details">
           <X size={18} />
         </a>
         <div className="detail-id">
           <span className="tag">{UNIT_LEVEL_LABEL[unit.level]}</span>
-          {parent ? <span className="dim small">di bawah {parent.name}</span> : <span className="dim small">unit puncak</span>}
+          {parent ? <span className="dim small">under {parent.name}</span> : <span className="dim small">top-level unit</span>}
         </div>
         <h2>{unit.name}</h2>
         <p className="detail-meta">
-          {members.length} orang · kode <span className="num">{unit.id}</span>
+          {members.length} people · code <span className="num">{unit.id}</span>
         </p>
       </header>
       {marks.length ? (
@@ -414,34 +414,34 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
       ) : null}
       <section className="detail-section">
         <div className="section-head">
-          <h3>Kepala unit</h3>
+          <h3>Unit head</h3>
           {org.canEdit ? (
             <button className="btn small" onClick={() => setMode(mode === 'head' ? '' : 'head')}>
-              {mode === 'head' ? 'Batal' : 'Ganti'}
+              {mode === 'head' ? 'Cancel' : 'Change'}
             </button>
           ) : null}
         </div>
-        {head ? <Person name={head.name} sub={head.title ?? 'Kepala definitif'} /> : acting ? <Person name={acting.name} sub={`Plt sampai ${fmtDate(unit.actingUntil)}`} /> : <p className="dim">Kosong. Approval untuk unit ini naik ke {parent ? `kepala ${parent.name}` : 'tidak ada siapa pun'}.</p>}
+        {head ? <Person name={head.name} sub={head.title ?? 'Permanent head'} /> : acting ? <Person name={acting.name} sub={`Acting head until ${fmtDate(unit.actingUntil)}`} /> : <p className="dim">Vacant. Approvals for this unit go up to {parent ? `the head of ${parent.name}` : 'no one'}.</p>}
         {mode === 'head' ? (
           <Propose
-            label="Usulkan kepala unit"
+            label="Propose unit head"
             onDone={done}
             change={() =>
               kind === 'none'
                 ? { kind: 'unit_head', id: unit.id, headUserId: null }
                 : !who
-                  ? 'Pilih orangnya dulu'
+                  ? 'Select a person first.'
                   : kind === 'head'
                     ? { kind: 'unit_head', id: unit.id, headUserId: who }
                     : { kind: 'unit_head', id: unit.id, actingHeadUserId: who, actingUntil: until ? new Date(`${until}T23:59:59`).toISOString() : null }
             }
           >
-            <div className="segmented" role="group" aria-label="Jenis penunjukan">
+            <div className="segmented" role="group" aria-label="Appointment type">
               {(
                 [
-                  ['head', 'Kepala definitif'],
-                  ['acting', 'Pejabat sementara (Plt)'],
-                  ['none', 'Kosongkan'],
+                  ['head', 'Permanent head'],
+                  ['acting', 'Acting head'],
+                  ['none', 'Leave vacant'],
                 ] as const
               ).map(([k, label]) => (
                 <button type="button" key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)} aria-pressed={kind === k}>
@@ -451,9 +451,9 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
             </div>
             {kind !== 'none' ? (
               <label className="field">
-                <span className="field-label">{kind === 'head' ? 'Dipilih dari anggota unit ini' : 'Boleh dari unit mana pun'}</span>
+                <span className="field-label">{kind === 'head' ? 'Chosen from this unit\'s members' : 'Can be from any unit'}</span>
                 <select value={who} onChange={(e) => setWho(e.target.value)}>
-                  <option value="">Pilih orang</option>
+                  <option value="">Select a person</option>
                   {pool.map((u) => (
                     <option key={u.id} value={u.id}>
                       {short(u.name)}
@@ -465,7 +465,7 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
             ) : null}
             {kind === 'acting' ? (
               <label className="field">
-                <span className="field-label">Plt berakhir</span>
+                <span className="field-label">Acting head until</span>
                 <input type="date" value={until} min={today()} onChange={(e) => setUntil(e.target.value)} required />
               </label>
             ) : null}
@@ -473,8 +473,8 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
         ) : null}
       </section>
       <section className="detail-section">
-        <h3 className="section-title">Anggota</h3>
-        {members.length === 0 ? <p className="dim small">Belum ada anggota.</p> : null}
+        <h3 className="section-title">Members</h3>
+        {members.length === 0 ? <p className="dim small">No members yet.</p> : null}
         <ul className="people">
           {members.map((m) => (
             <li key={m.id}>
@@ -489,20 +489,20 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
         <section className="detail-section">
           <div className="detail-actions">
             <button className="btn small" onClick={() => setMode(mode === 'child' ? '' : 'child')}>
-              <Plus size={14} /> Unit di bawahnya
+              <Plus size={14} /> Add sub-unit
             </button>
             <button className="btn small" onClick={() => setMode(mode === 'edit' ? '' : 'edit')}>
-              Ubah unit
+              Edit unit
             </button>
             <button className="btn small danger" onClick={() => setMode(mode === 'delete' ? '' : 'delete')}>
-              Hapus unit
+              Delete unit
             </button>
           </div>
           {mode === 'child' ? <UnitForm org={org} done={done} parent={unit} /> : null}
           {mode === 'edit' ? <UnitForm org={org} done={done} unit={unit} /> : null}
           {mode === 'delete' ? (
-            <Propose label="Usulkan penghapusan" onDone={done} change={() => ({ kind: 'unit_delete', id: unit.id })}>
-              <p className="dim small">Unit hanya bisa dihapus kalau tidak punya anggota dan tidak punya unit di bawahnya.</p>
+            <Propose label="Propose deletion" onDone={done} change={() => ({ kind: 'unit_delete', id: unit.id })}>
+              <p className="dim small">A unit can only be deleted when it has no members and no sub-units.</p>
             </Propose>
           ) : null}
         </section>
@@ -511,7 +511,7 @@ function UnitDetail({ unit, org, done }: { unit: Unit; org: Org; done: () => voi
   );
 }
 
-function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: () => void }) {
+function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: (res?: any) => void }) {
   const [chain] = useLoad<{ chain: { userId: string; name: string; basis: string }[]; stop?: string }>(`/org/chain/${person.id}`, [person.id, org]);
   const [mode, setMode] = useState<'' | 'place' | 'exception'>('');
   const [unitId, setUnitId] = useState(person.unitId ?? '');
@@ -523,12 +523,12 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
   return (
     <article className="detail embedded">
       <header className="detail-head">
-        <a className="icon-btn detail-close" href="#/org/pohon" aria-label="Tutup detail">
+        <a className="icon-btn detail-close" href="#/org/pohon" aria-label="Close details">
           <X size={18} />
         </a>
         <h2>{short(person.name)}</h2>
         <p className="detail-meta">
-          {person.title ?? 'Jabatan belum diisi'} · {unit ? unit.name : 'belum ditempatkan'} · <span className="num">{person.email}</span>
+          {person.title ?? 'No title set'} · {unit ? unit.name : 'not placed'} · <span className="num">{person.email}</span>
         </p>
       </header>
       {marks.length ? (
@@ -543,7 +543,7 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
         </section>
       ) : null}
       <section className="detail-section">
-        <h3 className="section-title">Jalur atasan</h3>
+        <h3 className="section-title">Reporting line</h3>
         {!chain ? <Loading /> : null}
         <ol className="steps">
           {chain?.chain.map((c, i) => (
@@ -552,7 +552,7 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
               <div className="step-body">
                 <div className="step-line">
                   <strong>{short(c.name)}</strong>
-                  <span className="dim small">{i === 0 ? 'atasan langsung' : `${i + 1} tingkat di atas`}</span>
+                  <span className="dim small">{i === 0 ? 'direct superior' : `${i + 1} levels up`}</span>
                 </div>
                 <div className="basis">{c.basis}</div>
               </div>
@@ -562,8 +562,8 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
         {chain && chain.chain.length === 0 ? <p className="error-note">{chain.stop}</p> : null}
       </section>
       <section className="detail-section">
-        <h3 className="section-title">Wewenang</h3>
-        {authorities.length === 0 ? <p className="dim small">Tidak memegang wewenang.</p> : null}
+        <h3 className="section-title">Authority</h3>
+        {authorities.length === 0 ? <p className="dim small">Holds no authority.</p> : null}
         <div className="tree-tags">
           {authorities.map((a) => (
             <span key={a.id} className="tag blue">
@@ -574,11 +574,11 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
       </section>
       {exceptions.length ? (
         <section className="detail-section">
-          <h3 className="section-title">Pengecualian pelaporan</h3>
+          <h3 className="section-title">Reporting exceptions</h3>
           {exceptions.map((e) => (
             <p key={e.id} className="small">
-              Melapor ke <strong>{short(org.users.find((u) => u.id === e.toUserId)?.name)}</strong>
-              {e.flowKey ? ` untuk alur ${e.flowKey}` : ' untuk semua alur'} sampai {fmtDate(e.endsAt)}. <span className="dim">{e.reason}</span>
+              Reports to <strong>{short(org.users.find((u) => u.id === e.toUserId)?.name)}</strong>
+              {e.flowKey ? ` for flow ${e.flowKey}` : ' for all flows'} until {fmtDate(e.endsAt)}. <span className="dim">{e.reason}</span>
             </p>
           ))}
         </section>
@@ -587,19 +587,19 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
         <section className="detail-section">
           <div className="detail-actions">
             <button className="btn small" onClick={() => setMode(mode === 'place' ? '' : 'place')}>
-              Pindahkan atau ubah jabatan
+              Move or change title
             </button>
             <button className="btn small" onClick={() => setMode(mode === 'exception' ? '' : 'exception')}>
-              Tambah pengecualian
+              Add reporting exception
             </button>
           </div>
           {mode === 'place' ? (
-            <Propose label="Usulkan penempatan" onDone={done} change={() => (unitId ? { kind: 'user_place', userId: person.id, unitId, title } : 'Pilih unitnya dulu')}>
+            <Propose label="Propose placement" onDone={done} change={() => (unitId ? { kind: 'user_place', userId: person.id, unitId, title } : 'Select a unit first.')}>
               <div className="form-grid">
                 <label className="field">
                   <span className="field-label">Unit</span>
                   <select value={unitId} onChange={(e) => setUnitId(e.target.value)}>
-                    <option value="">Pilih unit</option>
+                    <option value="">Select a unit</option>
                     {org.units.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name}
@@ -608,7 +608,7 @@ function PersonDetail({ person, org, done }: { person: OrgUser; org: Org; done: 
                   </select>
                 </label>
                 <label className="field">
-                  <span className="field-label">Jabatan</span>
+                  <span className="field-label">Title</span>
                   <input value={title} onChange={(e) => setTitle(e.target.value)} />
                 </label>
               </div>
@@ -636,23 +636,23 @@ function People({ org }: TabProps) {
   return (
     <div className="page org-page">
       <div className="toolbar">
-        <input className="grow" type="search" placeholder="Cari nama, jabatan, email, atau unit" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Cari karyawan" />
-        <select value={only} onChange={(e) => setOnly(e.target.value)} aria-label="Saring karyawan">
-          <option value="">Semua karyawan</option>
-          <option value="unplaced">Belum ditempatkan</option>
-          <option value="heads">Kepala unit</option>
+        <input className="grow" type="search" placeholder="Search by name, title, email, or unit" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search people" />
+        <select value={only} onChange={(e) => setOnly(e.target.value)} aria-label="Filter people">
+          <option value="">All people</option>
+          <option value="unplaced">Not placed</option>
+          <option value="heads">Unit heads</option>
         </select>
       </div>
-      {rows.length === 0 ? <Empty title="Tidak ada karyawan yang cocok" /> : null}
+      {rows.length === 0 ? <Empty title="No matching people" /> : null}
       {rows.length ? (
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
-                <th>Nama</th>
+                <th>Name</th>
                 <th>Unit</th>
-                <th>Wewenang</th>
-                <th className="col-time">Tugas terbuka</th>
+                <th>Authority</th>
+                <th className="col-time">Open tasks</th>
               </tr>
             </thead>
             <tbody>
@@ -665,10 +665,10 @@ function People({ org }: TabProps) {
                     {unit.get(u.unitId ?? '') ? (
                       <>
                         <span className="cell-main">{unit.get(u.unitId!)!.name}</span>
-                        {org.units.some((x) => x.headUserId === u.id) ? <span className="tag">Kepala</span> : null}
+                        {org.units.some((x) => x.headUserId === u.id) ? <span className="tag">Head</span> : null}
                       </>
                     ) : (
-                      <span className="badge bad">Belum ditempatkan</span>
+                      <span className="badge bad">Not placed</span>
                     )}
                   </td>
                   <td>
@@ -711,7 +711,7 @@ function Authorities({ org, done }: TabProps) {
   return (
     <div className="page org-page">
       <p className="page-sub">
-        Wewenang menjawab "siapa berhak menyetujui hal ini", terlepas dari unit pemohon. Batas nominal diatur di tabel aturan tiap alur, bukan di sini.
+        An authority answers "who may approve this", regardless of the requester's unit. Amount limits are set in each flow's rule tables, not here.
       </p>
       <div className="flow-list">
         {org.authorities.map((a) => {
@@ -726,40 +726,40 @@ function Authorities({ org, done }: TabProps) {
                   </h2>
                   <p className="cell-sub">
                     <span className="num">{a.id}</span>
-                    {a.description ? ` · ${a.description}` : ''} · {org.usage[a.id]?.length ? `dipakai alur ${org.usage[a.id]!.join(', ')}` : 'belum dipakai alur mana pun'}
+                    {a.description ? ` · ${a.description}` : ''} · {org.usage[a.id]?.length ? `used by flows ${org.usage[a.id]!.join(', ')}` : 'not used by any flow'}
                   </p>
                 </div>
                 {org.canEdit ? (
                   <button className="btn small" onClick={() => setAdding(adding === a.id ? '' : a.id)}>
-                    {adding === a.id ? 'Batal' : 'Tambah pemegang'}
+                    {adding === a.id ? 'Cancel' : 'Add holder'}
                   </button>
                 ) : null}
               </header>
               {marks.map((f, i) => (
                 <p key={i} className={`check-row ${f.level === 'error' ? 'bad' : 'warn'}`}>
-                  {f.message.replace(`Wewenang ${a.name}: `, '')}
+                  {f.message.replace(`Authority ${a.name}: `, '')}
                 </p>
               ))}
               <ul className="versions">
                 {holders.map((h) => (
                   <li key={`${h.userId}:${h.scopeUnitId ?? ''}`} className="version static">
                     <Person name={user(h.userId)?.name ?? h.userId} sub={user(h.userId)?.title} />
-                    <span className="grow cell-sub">{h.scopeUnitId ? `hanya untuk pemohon di bawah ${unit(h.scopeUnitId)?.name ?? h.scopeUnitId}` : 'untuk semua pemohon'}</span>
+                    <span className="grow cell-sub">{h.scopeUnitId ? `only for requesters under ${unit(h.scopeUnitId)?.name ?? h.scopeUnitId}` : 'for all requesters'}</span>
                     {org.canEdit ? (
                       <button className="btn small danger" onClick={() => remove(a.id, h)}>
-                        Usulkan cabut
+                        Propose removal
                       </button>
                     ) : null}
                   </li>
                 ))}
               </ul>
               {adding === a.id ? (
-                <Propose label="Usulkan pemegang" onDone={done} change={() => (who ? { kind: 'holder_add', authorityId: a.id, userId: who, scopeUnitId: scope || null } : 'Pilih orangnya dulu')}>
+                <Propose label="Propose holder" onDone={done} change={() => (who ? { kind: 'holder_add', authorityId: a.id, userId: who, scopeUnitId: scope || null } : 'Select a person first.')}>
                   <div className="form-grid">
                     <label className="field">
-                      <span className="field-label">Pemegang</span>
+                      <span className="field-label">Holder</span>
                       <select value={who} onChange={(e) => setWho(e.target.value)}>
-                        <option value="">Pilih orang</option>
+                        <option value="">Select a person</option>
                         {org.users.map((u) => (
                           <option key={u.id} value={u.id}>
                             {short(u.name)}
@@ -769,12 +769,12 @@ function Authorities({ org, done }: TabProps) {
                       </select>
                     </label>
                     <label className="field">
-                      <span className="field-label">Cakupan</span>
+                      <span className="field-label">Scope</span>
                       <select value={scope} onChange={(e) => setScope(e.target.value)}>
-                        <option value="">Semua pemohon</option>
+                        <option value="">All requesters</option>
                         {org.units.map((u) => (
                           <option key={u.id} value={u.id}>
-                            Hanya di bawah {u.name}
+                            Only under {u.name}
                           </option>
                         ))}
                       </select>
@@ -785,23 +785,23 @@ function Authorities({ org, done }: TabProps) {
             </section>
           );
         })}
-        {org.authorities.length === 0 ? <Empty title="Belum ada wewenang" /> : null}
+        {org.authorities.length === 0 ? <Empty title="No authorities yet" /> : null}
         {org.canEdit ? (
           <section className="sheet flow">
-            <h2>Wewenang baru</h2>
-            <Propose label="Usulkan wewenang" onDone={done} change={() => ({ kind: 'authority_upsert', id, name, description })}>
+            <h2>New authority</h2>
+            <Propose label="Propose authority" onDone={done} change={() => ({ kind: 'authority_upsert', id, name, description })}>
               <div className="form-grid">
                 <label className="field">
-                  <span className="field-label">Nama</span>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Persetujuan pembelian IT" required />
+                  <span className="field-label">Name</span>
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="IT purchase approval" required />
                 </label>
                 <label className="field">
-                  <span className="field-label">Kode (huruf kecil, angka, garis bawah)</span>
-                  <input className="num" value={id} onChange={(e) => setId(e.target.value)} pattern="[a-z0-9_]+" placeholder="pembelian_it" required />
+                  <span className="field-label">Code (lowercase letters, digits, underscores)</span>
+                  <input className="num" value={id} onChange={(e) => setId(e.target.value)} pattern="[a-z0-9_]+" placeholder="it_purchase" required />
                 </label>
                 <label className="field span-2">
                   <span className="field-label">
-                    Keterangan <span className="optional">opsional</span>
+                    Description <span className="optional">optional</span>
                   </span>
                   <input value={description} onChange={(e) => setDescription(e.target.value)} />
                 </label>
@@ -816,7 +816,7 @@ function Authorities({ org, done }: TabProps) {
 
 /* ---------- Pengecualian ---------- */
 
-function ExceptionForm({ org, done, userId }: { org: Org; done: () => void; userId?: string }) {
+function ExceptionForm({ org, done, userId }: { org: Org; done: (res?: any) => void; userId?: string }) {
   const [who, setWho] = useState(userId ?? '');
   const [to, setTo] = useState('');
   const [flowKey, setFlowKey] = useState('');
@@ -826,20 +826,20 @@ function ExceptionForm({ org, done, userId }: { org: Org; done: () => void; user
   const [flows] = useLoad<{ key: string; name: string }[]>('/flows');
   return (
     <Propose
-      label="Usulkan pengecualian"
+      label="Propose reporting exception"
       onDone={done}
       change={() =>
         !who || !to || !end
-          ? 'Lengkapi orang, atasan pengganti, dan tanggal berakhir'
+          ? 'Select the person, the substitute superior, and the end date.'
           : { kind: 'exception_add', userId: who, toUserId: to, flowKey: flowKey || null, reason, startsAt: new Date(`${start}T00:00:00`).toISOString(), endsAt: new Date(`${end}T23:59:59`).toISOString() }
       }
     >
       <div className="form-grid">
         {userId ? null : (
           <label className="field">
-            <span className="field-label">Siapa</span>
+            <span className="field-label">Person</span>
             <select value={who} onChange={(e) => setWho(e.target.value)}>
-              <option value="">Pilih orang</option>
+              <option value="">Select a person</option>
               {org.users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {short(u.name)}
@@ -849,9 +849,9 @@ function ExceptionForm({ org, done, userId }: { org: Org; done: () => void; user
           </label>
         )}
         <label className="field">
-          <span className="field-label">Melapor ke</span>
+          <span className="field-label">Reports to</span>
           <select value={to} onChange={(e) => setTo(e.target.value)}>
-            <option value="">Pilih atasan pengganti</option>
+            <option value="">Select a substitute superior</option>
             {org.users
               .filter((u) => u.id !== who)
               .map((u) => (
@@ -863,27 +863,27 @@ function ExceptionForm({ org, done, userId }: { org: Org; done: () => void; user
           </select>
         </label>
         <label className="field">
-          <span className="field-label">Berlaku untuk</span>
+          <span className="field-label">Applies to</span>
           <select value={flowKey} onChange={(e) => setFlowKey(e.target.value)}>
-            <option value="">Semua alur</option>
+            <option value="">All flows</option>
             {flows?.map((f) => (
               <option key={f.key} value={f.key}>
-                Hanya {f.name}
+                Only {f.name}
               </option>
             ))}
           </select>
         </label>
         <label className="field">
-          <span className="field-label">Mulai</span>
+          <span className="field-label">Starts</span>
           <input type="date" value={start} onChange={(e) => setStart(e.target.value)} required />
         </label>
         <label className="field">
-          <span className="field-label">Berakhir (paling lama satu tahun)</span>
+          <span className="field-label">Ends (one year at most)</span>
           <input type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} required />
         </label>
         <label className="field span-2">
-          <span className="field-label">Alasan</span>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Misalnya: diperbantukan ke proyek ERP" required />
+          <span className="field-label">Reason</span>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example: seconded to the ERP project" required />
         </label>
       </div>
     </Propose>
@@ -900,25 +900,25 @@ function Exceptions({ org, done }: TabProps) {
   const rows = [...org.exceptions].sort((a, b) => b.endsAt.localeCompare(a.endsAt));
   return (
     <div className="page org-page">
-      <p className="page-sub">Pengecualian dipakai kalau seseorang memang melapor ke orang di luar unitnya. Selalu punya alasan dan tanggal berakhir, supaya tidak menjadi kebiasaan tersembunyi.</p>
+      <p className="page-sub">Use a reporting exception when someone reports to a person outside their unit. Each one has a reason and an end date, so it does not become a hidden habit.</p>
       <div className="two-col">
         <section>
-          {rows.length === 0 ? <Empty title="Tidak ada pengecualian pelaporan">Semua orang melapor sesuai pohon unit.</Empty> : null}
+          {rows.length === 0 ? <Empty title="No reporting exceptions">Everyone reports according to the unit tree.</Empty> : null}
           {rows.length ? (
             <div className="table-wrap">
               <table className="table static">
                 <thead>
                   <tr>
-                    <th>Siapa</th>
-                    <th>Melapor ke</th>
-                    <th>Cakupan dan alasan</th>
-                    <th>Periode</th>
-                    <th aria-label="Aksi" />
+                    <th>Person</th>
+                    <th>Reports to</th>
+                    <th>Scope and reason</th>
+                    <th>Period</th>
+                    <th aria-label="Actions" />
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((e) => {
-                    const state = e.endsAt <= now ? 'Berakhir' : e.startsAt > now ? 'Terjadwal' : 'Aktif';
+                    const state = e.endsAt <= now ? 'Ended' : e.startsAt > now ? 'Scheduled' : 'Active';
                     return (
                       <tr key={e.id}>
                         <td>
@@ -928,19 +928,19 @@ function Exceptions({ org, done }: TabProps) {
                           <Person name={name(e.toUserId)} />
                         </td>
                         <td>
-                          <div className="cell-main">{e.flowKey ? `Alur ${e.flowKey}` : 'Semua alur'}</div>
+                          <div className="cell-main">{e.flowKey ? `Flow ${e.flowKey}` : 'All flows'}</div>
                           <div className="cell-sub">{e.reason}</div>
                         </td>
                         <td>
                           <div className="num">
                             {fmtDate(e.startsAt)} – {fmtDate(e.endsAt)}
                           </div>
-                          <Badge status={state === 'Aktif' ? 'active' : state === 'Terjadwal' ? 'open' : 'cancelled'} label={state} />
+                          <Badge status={state === 'Active' ? 'active' : state === 'Scheduled' ? 'open' : 'cancelled'} label={state} />
                         </td>
                         <td className="col-action">
-                          {org.canEdit && state !== 'Berakhir' ? (
+                          {org.canEdit && state !== 'Ended' ? (
                             <button className="btn small danger" onClick={() => end(e.id)}>
-                              Usulkan akhiri
+                              Propose ending
                             </button>
                           ) : null}
                         </td>
@@ -954,7 +954,7 @@ function Exceptions({ org, done }: TabProps) {
         </section>
         {org.canEdit ? (
           <div className="sheet">
-            <h2>Pengecualian baru</h2>
+            <h2>New reporting exception</h2>
             <ExceptionForm org={org} done={done} />
           </div>
         ) : null}
@@ -966,11 +966,11 @@ function Exceptions({ org, done }: TabProps) {
 /* ---------- Perubahan ---------- */
 
 const CHANGE_STATUS: Record<string, [string, string]> = {
-  pending: ['open', 'Menunggu tinjauan'],
-  scheduled: ['draft', 'Terjadwal'],
-  applied: ['approved', 'Berlaku'],
-  rejected: ['rejected', 'Ditolak'],
-  failed: ['rejected', 'Gagal diterapkan'],
+  pending: ['open', 'Awaiting review'],
+  scheduled: ['draft', 'Scheduled'],
+  applied: ['approved', 'In effect'],
+  rejected: ['rejected', 'Rejected'],
+  failed: ['rejected', 'Could not be applied'],
 };
 
 function Changes({ onDone }: { onDone: () => void }) {
@@ -983,10 +983,10 @@ function Changes({ onDone }: { onDone: () => void }) {
       const res = await api('POST', `/org/changes/${id}/review`, { decision, note: notes[id] });
       setMessage(
         res.status === 'applied'
-          ? `Perubahan berlaku.${res.movedTasks ? ` ${res.movedTasks} tugas terbuka dialihkan mengikuti struktur baru.` : ''}`
+          ? `Change applied.${res.movedTasks ? ` ${res.movedTasks} open ${res.movedTasks === 1 ? 'task was' : 'tasks were'} reassigned to match the new structure.` : ''}`
           : res.status === 'scheduled'
-            ? `Disetujui, berlaku ${fmtDate(res.effectiveFrom)}.`
-            : 'Usulan ditolak.',
+            ? `Approved. Takes effect ${fmtDate(res.effectiveFrom)}.`
+            : 'Proposal rejected.',
       );
     } catch (e: any) {
       setMessage(e.message);
@@ -999,7 +999,7 @@ function Changes({ onDone }: { onDone: () => void }) {
       <ErrorNote>{error}</ErrorNote>
       {message ? <div className="notice">{message}</div> : null}
       {!list && !error ? <Loading /> : null}
-      {list?.length === 0 ? <Empty title="Belum ada usulan perubahan" /> : null}
+      {list?.length === 0 ? <Empty title="No change proposals yet" /> : null}
       <div className="flow-list">
         {list?.map((ch) => {
           const [tone, label] = CHANGE_STATUS[ch.status] ?? ['open', ch.status];
@@ -1009,39 +1009,39 @@ function Changes({ onDone }: { onDone: () => void }) {
                 <div>
                   <p className="cell-main">{ch.summary}</p>
                   <p className="cell-sub">
-                    Diusulkan {short(ch.proposed_by_name)} · <span className="num">{fmtTime(ch.proposed_at)}</span> · berlaku <span className="num">{fmtDate(ch.effective_from)}</span>
-                    {ch.reviewed_by_name ? ` · ditinjau ${short(ch.reviewed_by_name)}` : ''}
+                    Proposed by {short(ch.proposed_by_name)} · <span className="num">{fmtTime(ch.proposed_at)}</span> · effective <span className="num">{fmtDate(ch.effective_from)}</span>
+                    {ch.reviewed_by_name ? ` · reviewed by ${short(ch.reviewed_by_name)}` : ''}
                   </p>
                 </div>
                 <Badge status={tone} label={label} />
               </div>
               {ch.note ? <blockquote>{ch.note}</blockquote> : null}
-              {ch.review_note ? <p className="dim small">Catatan peninjau: {ch.review_note}</p> : null}
+              {ch.review_note ? <p className="dim small">Reviewer note: {ch.review_note}</p> : null}
               {ch.impact.length ? (
                 <ul className="finding-list">
                   {ch.impact.map((i: any, n: number) => (
                     <li key={n} className={i.type === 'selesai' ? 'ok' : i.level === 'error' ? 'bad' : 'warn'}>
-                      {i.type === 'selesai' ? 'Menyelesaikan: ' : 'Menimbulkan: '}
+                      {i.type === 'selesai' ? 'Resolves: ' : 'Introduces: '}
                       {i.message}
                     </li>
                   ))}
                 </ul>
               ) : ch.status === 'pending' ? (
-                <p className="dim small">Tidak menimbulkan temuan struktur baru.</p>
+                <p className="dim small">Introduces no new structure findings.</p>
               ) : null}
               {ch.status === 'pending' ? (
                 ch.canReview ? (
                   <div className="toolbar review">
-                    <input className="grow" placeholder="Catatan tinjauan (opsional)" value={notes[ch.id] ?? ''} onChange={(e) => setNotes({ ...notes, [ch.id]: e.target.value })} />
+                    <input className="grow" placeholder="Review note (optional)" value={notes[ch.id] ?? ''} onChange={(e) => setNotes({ ...notes, [ch.id]: e.target.value })} />
                     <button className="btn danger" onClick={() => review(ch.id, 'reject')}>
-                      Tolak
+                      Reject
                     </button>
                     <button className="btn primary" onClick={() => review(ch.id, 'approve')}>
-                      Setujui
+                      Approve
                     </button>
                   </div>
                 ) : (
-                  <p className="dim small">Usulan Anda sendiri, atau Anda bukan pemilik organisasi: harus ditinjau pemilik organisasi lain.</p>
+                  <p className="dim small">This is your own proposal, or you are not an organization owner: another organization owner must review it.</p>
                 )
               ) : null}
             </section>
@@ -1074,13 +1074,13 @@ function Coverage() {
   return (
     <div className="page org-page">
       <div className="page-head">
-        <p className="page-sub">Setiap orang dicoba sebagai pemohon di setiap alur yang berlaku, termasuk semua baris tabel aturan. Yang tampil di sini adalah jalur yang akan buntu kalau permintaannya diajukan hari ini.</p>
+        <p className="page-sub">Every person is tested as a requester in every active flow, including every rule table row. The paths listed here would dead-end if the request were submitted today.</p>
         <button className="btn" onClick={run} disabled={busy}>
-          {busy ? 'Menguji…' : 'Uji ulang'}
+          {busy ? 'Testing…' : 'Run again'}
         </button>
       </div>
       <ErrorNote>{error}</ErrorNote>
-      {!res && !error ? <Loading label="Menguji semua orang di semua alur…" /> : null}
+      {!res && !error ? <Loading label="Testing every person in every flow…" /> : null}
       <div className="flow-list">
         {res?.flows.map((f: any) => (
           <section key={f.key} className="sheet flow">
@@ -1088,19 +1088,19 @@ function Coverage() {
               <div>
                 <h2>{f.name}</h2>
                 <p className="cell-sub">
-                  versi {f.version} · <span className="num">{f.people - f.blocked}</span> dari <span className="num">{f.people}</span> orang punya jalur lengkap
+                  version {f.version} · <span className="num">{f.people - f.blocked}</span> of <span className="num">{f.people}</span> people have a complete path
                 </p>
               </div>
-              <Badge status={f.blocked ? 'rejected' : 'approved'} label={f.blocked ? `${f.blocked} orang buntu` : 'Semua punya jalur'} />
+              <Badge status={f.blocked ? 'rejected' : 'approved'} label={f.blocked ? `${f.blocked} blocked` : 'Everyone has a path'} />
             </header>
             {f.gaps.length ? (
               <div className="table-wrap">
                 <table className="table static">
                   <thead>
                     <tr>
-                      <th>Pemohon</th>
-                      <th>Langkah</th>
-                      <th>Kenapa buntu</th>
+                      <th>Requester</th>
+                      <th>Step</th>
+                      <th>Why it dead-ends</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1122,7 +1122,7 @@ function Coverage() {
             ) : null}
           </section>
         ))}
-        {res?.flows.length === 0 ? <Empty title="Belum ada alur yang berlaku" /> : null}
+        {res?.flows.length === 0 ? <Empty title="No active flows yet" /> : null}
       </div>
     </div>
   );
@@ -1153,8 +1153,8 @@ function Settings({ org, onDone }: { org: Org; onDone: () => void }) {
       <ErrorNote>{error}</ErrorNote>
       <div className="flow-list">
         <section className="sheet flow">
-          <h2>Pemilik master organisasi</h2>
-          <p className="cell-sub">Minimal dua orang, supaya setiap perubahan ditinjau orang kedua. Admin sistem tidak bisa menjadi pemilik.</p>
+          <h2>Organization owners</h2>
+          <p className="cell-sub">At least two people, so that every proposed change is reviewed by a second person.</p>
           <div className="owner-grid">
             {org.users.map((u) => (
               <label key={u.id} className="check">
@@ -1166,29 +1166,29 @@ function Settings({ org, onDone }: { org: Org; onDone: () => void }) {
             ))}
           </div>
           <div className="form-actions">
-            <button className="btn primary" disabled={picked.length < 2} onClick={() => run(async () => (await api('PUT', '/org/owners', { userIds: picked }), 'Pemilik master organisasi tersimpan.'))}>
-              Simpan pemilik
+            <button className="btn primary" disabled={picked.length < 2} onClick={() => run(async () => (await api('PUT', '/org/owners', { userIds: picked }), 'Organization owners saved.'))}>
+              Save owners
             </button>
           </div>
         </section>
         <section className="sheet flow">
-          <h2>Impor daftar unit</h2>
+          <h2>Import units</h2>
           <p className="cell-sub">
-            CSV dengan kolom <span className="num">id,name,level,parent_id</span>. Tingkat: {UNIT_LEVELS.join(', ')}. Kepala unit tidak diimpor; ditetapkan pemilik organisasi lewat usulan.
+            CSV with columns <span className="num">id,name,level,parent_id</span>. Levels: {UNIT_LEVELS.join(', ')}. Unit heads are not imported; they are set through a proposal on the Tree tab.
           </p>
           <textarea rows={5} className="num" value={units} onChange={(e) => setUnits(e.target.value)} placeholder={'id,name,level,parent_id\nfinance,Finance,departemen,direksi'} />
           <div className="form-actions">
-            <button className="btn primary" disabled={!units.trim()} onClick={() => run(async () => `${(await api('POST', '/org/import/units', units)).imported} unit diimpor.`)}>
-              Impor unit
+            <button className="btn primary" disabled={!units.trim()} onClick={() => run(async () => `${(await api('POST', '/org/import/units', units)).imported} units imported.`)}>
+              Import units
             </button>
           </div>
         </section>
         <section className="sheet flow">
-          <h2>Impor karyawan</h2>
+          <h2>Import people</h2>
           <p className="cell-sub">
-            CSV dengan kolom <span className="num">id,email,name,unit_id,title</span>. Atasan tidak diimpor: dihitung dari unit. Karyawan baru mendapat password sementara.
+            CSV with columns <span className="num">id,email,name,unit_id,title</span>. Superiors are not imported: they are derived from the unit. New people get a temporary password.
           </p>
-          <textarea rows={5} className="num" value={people} onChange={(e) => setPeople(e.target.value)} placeholder={'id,email,name,unit_id,title\nu_rina,rina@contoh.test,Rina,finance,Staf Akuntansi'} />
+          <textarea rows={5} className="num" value={people} onChange={(e) => setPeople(e.target.value)} placeholder={'id,email,name,unit_id,title\nu_rina,rina@example.test,Rina,finance,Accounting staff'} />
           <div className="form-actions">
             <button
               className="btn primary"
@@ -1196,11 +1196,11 @@ function Settings({ org, onDone }: { org: Org; onDone: () => void }) {
               onClick={() =>
                 run(async () => {
                   const res = await api('POST', '/admin/directory', people);
-                  return `${res.imported} karyawan diimpor.${res.created.length ? ` Password sementara: ${res.created.map((c: any) => `${c.email} ${c.temporaryPassword}`).join('; ')}` : ''}`;
+                  return `${res.imported} people imported.${res.created.length ? ` Temporary passwords: ${res.created.map((c: any) => `${c.email} ${c.temporaryPassword}`).join('; ')}` : ''}`;
                 })
               }
             >
-              Impor karyawan
+              Import people
             </button>
           </div>
         </section>

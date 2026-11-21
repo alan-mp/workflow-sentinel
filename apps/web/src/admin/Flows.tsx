@@ -24,12 +24,12 @@ function OwnersForm(props: { flowKey?: string; current: string[]; users: any[]; 
     <form className="owners-form" onSubmit={submit}>
       {props.flowKey ? null : (
         <label className="field">
-          <span className="field-label">Kunci alur (huruf kecil, angka, garis bawah)</span>
+          <span className="field-label">Flow key (lowercase letters, digits, underscores)</span>
           <input className="num" value={key} onChange={(e) => setKey(e.target.value)} pattern="[a-z0-9_]+" required />
         </label>
       )}
       <fieldset className="field">
-        <legend className="field-label">Pemilik proses, minimal dua ({picked.length} dipilih)</legend>
+        <legend className="field-label">Process owners, at least two ({picked.length} selected)</legend>
         <div className="owner-grid">
           {props.users.map((u) => (
             <label key={u.id} className="check">
@@ -45,11 +45,11 @@ function OwnersForm(props: { flowKey?: string; current: string[]; users: any[]; 
       <div className="form-actions">
         {props.onCancel ? (
           <button type="button" className="btn ghost" onClick={props.onCancel}>
-            Batal
+            Cancel
           </button>
         ) : null}
         <button className="btn primary" disabled={picked.length < 2}>
-          Simpan pemilik
+          Save owners
         </button>
       </div>
     </form>
@@ -78,16 +78,16 @@ export function Flows({ me }: { me: Me }) {
   return (
     <div className="page">
       <PageHead
-        title="Alur approval"
+        title="Approval flows"
         sub={
           me.isAdmin
-            ? 'Anda admin sistem: menunjuk pemilik proses tiap alur. Isi alur hanya bisa diubah dan diaktifkan oleh pemiliknya.'
-            : 'Anda pemilik proses alur di bawah ini. Draf yang Anda susun harus diaktifkan oleh pemilik lain di alur yang sama.'
+            ? 'You are a system administrator: you can edit and activate any flow and assign process owners. Activating your own draft is recorded as an administrator override.'
+            : 'You are a process owner of the flows below. A draft you write must be activated by another owner of the same flow.'
         }
       />
       <ErrorNote>{error || loadError}</ErrorNote>
       {!flows && !loadError ? <Loading /> : null}
-      {flows?.length === 0 ? <Empty title="Belum ada alur terdaftar" /> : null}
+      {flows?.length === 0 ? <Empty title="No flows registered yet" /> : null}
       <div className="flow-list">
         {flows?.map((flow) => (
           <section key={flow.key} className="sheet flow">
@@ -95,18 +95,18 @@ export function Flows({ me }: { me: Me }) {
               <div>
                 <h2>{flow.name}</h2>
                 <p className="cell-sub">
-                  <span className="num">{flow.key}</span> · Pemilik proses: {flow.owners.map((o: any) => splitName(o.name)[0]).join(', ') || 'belum ditunjuk'}
+                  <span className="num">{flow.key}</span> · Process owners: {flow.owners.map((o: any) => splitName(o.name)[0]).join(', ') || 'none assigned'}
                 </p>
               </div>
               <div className="flow-actions">
                 {me.isAdmin ? (
                   <button className="btn small" onClick={() => setEditing(editing === flow.key ? null : flow.key)}>
-                    Ubah pemilik
+                    Change owners
                   </button>
                 ) : null}
                 {flow.canEdit && flow.versions.length > 0 ? (
                   <button className="btn small primary" onClick={() => create(flow.key)}>
-                    Buat draf perubahan
+                    Draft a change
                   </button>
                 ) : null}
               </div>
@@ -116,9 +116,9 @@ export function Flows({ me }: { me: Me }) {
             ) : null}
             {flow.canEdit && flow.versions.length === 0 ? (
               <div className="toolbar">
-                <input className="grow" placeholder="Nama alur, misalnya Permintaan Pembelian" value={names[flow.key] ?? ''} onChange={(e) => setNames({ ...names, [flow.key]: e.target.value })} />
+                <input className="grow" placeholder="Flow name, for example Purchase request" value={names[flow.key] ?? ''} onChange={(e) => setNames({ ...names, [flow.key]: e.target.value })} />
                 <button className="btn primary" disabled={!names[flow.key]} onClick={() => create(flow.key, names[flow.key])}>
-                  Buat draf pertama
+                  Create first draft
                 </button>
               </div>
             ) : null}
@@ -133,10 +133,10 @@ export function Flows({ me }: { me: Me }) {
                         <Badge status={v.status} />
                         <span className="grow cell-sub">
                           {v.status === 'active'
-                            ? `berlaku ${fmtDate(v.effective_from)} · diaktifkan ${v.activated_by_name ? splitName(v.activated_by_name)[0] : '-'}`
-                            : `disusun ${v.edited_by.map((uid: string) => splitName(flow.owners.find((o: any) => o.id === uid)?.name ?? uid)[0]).join(', ')}`}
+                            ? `effective ${fmtDate(v.effective_from)} · activated by ${v.activated_by_name ? splitName(v.activated_by_name)[0] : '-'}`
+                            : `edited by ${v.edited_by.map((uid: string) => splitName(flow.owners.find((o: any) => o.id === uid)?.name ?? uid)[0]).join(', ')}`}
                         </span>
-                        {waiting ? <span className="tag warn">Menunggu tinjauan Anda</span> : null}
+                        {waiting ? <span className="tag warn">Awaiting your review</span> : null}
                         <ChevronRight size={16} aria-hidden="true" />
                       </a>
                     </li>
@@ -148,7 +148,7 @@ export function Flows({ me }: { me: Me }) {
         ))}
         {me.isAdmin && users ? (
           <section className="sheet flow">
-            <h2>Daftarkan alur baru</h2>
+            <h2>Register a new flow</h2>
             <OwnersForm current={[]} users={users} onDone={done} />
           </section>
         ) : null}

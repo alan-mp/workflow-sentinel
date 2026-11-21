@@ -27,23 +27,23 @@ export function ApproverEditor(props: {
   return (
     <div className="inline">
       <select value={value.kind} onChange={(e) => pick(e.target.value)} disabled={props.disabled}>
-        <optgroup label="Sesuai struktur">
-          <option value="manager">Atasan pemohon</option>
-          <option value="unit_head">Kepala unit pemohon</option>
+        <optgroup label="By structure">
+          <option value="manager">Requester's superior</option>
+          <option value="unit_head">Requester's unit head</option>
         </optgroup>
-        <optgroup label="Sesuai wewenang">
-          <option value="role">Pemegang wewenang</option>
+        <optgroup label="By authority">
+          <option value="role">Authority holder</option>
         </optgroup>
-        <option value="user">User tertentu</option>
-        {extra.includes('table') ? <option value="table">Tabel aturan</option> : null}
-        {extra.includes('requester') ? <option value="requester">Pemohon</option> : null}
-        {extra.includes('none') ? <option value="none">Tidak perlu approval</option> : null}
+        <option value="user">Specific user</option>
+        {extra.includes('table') ? <option value="table">Rule table</option> : null}
+        {extra.includes('requester') ? <option value="requester">Requester</option> : null}
+        {extra.includes('none') ? <option value="none">No approval required</option> : null}
       </select>
       {value.kind === 'manager' ? (
         <select value={value.level} onChange={(e) => onChange({ kind: 'manager', level: Number(e.target.value) })} disabled={props.disabled}>
           {[1, 2, 3, 4, 5].map((n) => (
             <option key={n} value={n}>
-              {n === 1 ? 'atasan langsung' : `${n} tingkat di atas`}
+              {n === 1 ? 'direct superior' : `${n} levels up`}
             </option>
           ))}
         </select>
@@ -52,7 +52,7 @@ export function ApproverEditor(props: {
         <select value={value.level} onChange={(e) => onChange({ kind: 'unit_head', level: e.target.value })} disabled={props.disabled}>
           {UNIT_LEVELS.map((l) => (
             <option key={l} value={l}>
-              tingkat {UNIT_LEVEL_LABEL[l].toLowerCase()}
+              {UNIT_LEVEL_LABEL[l].toLowerCase()} level
             </option>
           ))}
         </select>
@@ -67,7 +67,7 @@ export function ApproverEditor(props: {
         </select>
       ) : null}
       {value.kind === 'user' ? (
-        <input placeholder="ID user" value={value.userId} onChange={(e) => onChange({ kind: 'user', userId: e.target.value })} disabled={props.disabled} />
+        <input placeholder="User ID" value={value.userId} onChange={(e) => onChange({ kind: 'user', userId: e.target.value })} disabled={props.disabled} />
       ) : null}
       {value.kind === 'table' ? (
         <select value={value.tableId} onChange={(e) => onChange({ kind: 'table', tableId: e.target.value })} disabled={props.disabled}>
@@ -95,7 +95,7 @@ export function ConditionsEditor(props: { value: Condition[]; onChange: (v: Cond
       {value.map((c, i) => (
         <div key={i} className="inline">
           <select value={c.field} onChange={(e) => set(i, { field: e.target.value, value: '' })} disabled={props.disabled}>
-            <option value="requester.department">Departemen pemohon</option>
+            <option value="requester.department">Requester department</option>
             {def.fields.map((f) => (
               <option key={f.key} value={f.key}>
                 {f.label}
@@ -117,18 +117,18 @@ export function ConditionsEditor(props: { value: Condition[]; onChange: (v: Cond
             <option value="gte">≥</option>
             <option value="lt">&lt;</option>
             <option value="lte">≤</option>
-            <option value="in">salah satu dari</option>
+            <option value="in">one of</option>
           </select>
           <input
             className="grow"
             type={types[c.field] === 'number' && c.op !== 'in' ? 'number' : types[c.field] === 'date' ? 'date' : 'text'}
-            placeholder={c.op === 'in' ? 'a, b, c' : 'nilai'}
+            placeholder={c.op === 'in' ? 'a, b, c' : 'value'}
             value={Array.isArray(c.value) ? c.value.join(', ') : String(c.value)}
             onChange={(e) => set(i, { value: parse(c, e.target.value) })}
             disabled={props.disabled}
           />
           {props.disabled ? null : (
-            <button className="icon-btn" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label="Hapus kondisi" title="Hapus kondisi">
+            <button className="icon-btn" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label="Remove condition" title="Remove condition">
               <X size={16} />
             </button>
           )}
@@ -136,7 +136,7 @@ export function ConditionsEditor(props: { value: Condition[]; onChange: (v: Cond
       ))}
       {props.disabled ? null : (
         <button className="link" onClick={() => onChange([...value, { field: def.fields[0]?.key ?? 'requester.department', op: 'eq', value: '' }])}>
-          + kondisi
+          + condition
         </button>
       )}
     </div>
@@ -152,7 +152,7 @@ export function Quotes({ citations, target }: { citations: any[]; target: string
         <blockquote key={i} className={q.source === 'sop' && !q.verified ? 'unverified' : ''}>
           “{q.quote}”
           <footer>
-            {q.source === 'admin' ? 'dari penjelasan admin' : q.verified ? `SOP${q.section ? `, ${q.section}` : ''}` : 'kutipan ini tidak ditemukan di teks SOP, periksa manual'}
+            {q.source === 'admin' ? 'from the administrator\'s explanation' : q.verified ? `SOP${q.section ? `, ${q.section}` : ''}` : 'this quote was not found in the SOP text; check it manually'}
           </footer>
         </blockquote>
       ))}
@@ -174,30 +174,30 @@ export function StepPanel(props: {
   return (
     <div className="panel">
       <label>
-        <span>Nama langkah</span>
+        <span>Step name</span>
         <input value={step.name} onChange={(e) => patch({ name: e.target.value })} disabled={readOnly} />
       </label>
       {step.type === 'approval' ? (
         <>
           <label>
-            <span>Disetujui oleh</span>
+            <span>Approved by</span>
           </label>
           <ApproverEditor value={step.approver} onChange={(approver) => patch({ approver })} def={def} roles={props.roles} extra={['table']} disabled={readOnly} />
           <label>
-            <span>SLA (jam)</span>
+            <span>SLA (hours)</span>
             <input type="number" min="1" value={step.slaHours ?? ''} disabled={readOnly} onChange={(e) => patch({ slaHours: e.target.value ? Number(e.target.value) : undefined })} />
           </label>
-          <p className="muted small">Lewat SLA: pengingat. Lewat dua kali SLA: eskalasi ke atasan approver.</p>
+          <p className="muted small">Past the SLA: a reminder is sent. Past twice the SLA: escalated to the approver's superior.</p>
         </>
       ) : null}
       {step.type === 'notify' ? (
         <>
           <label>
-            <span>Dikirim ke</span>
+            <span>Send to</span>
           </label>
           <ApproverEditor value={step.to} onChange={(to) => patch({ to })} def={def} roles={props.roles} extra={['requester']} disabled={readOnly} />
           <label>
-            <span>Pesan</span>
+            <span>Message</span>
             <textarea value={step.message} onChange={(e) => patch({ message: e.target.value })} disabled={readOnly} />
           </label>
         </>
@@ -206,7 +206,7 @@ export function StepPanel(props: {
         <>
           {step.branches.map((b, i) => (
             <fieldset key={i}>
-              <legend>Cabang {i + 1}</legend>
+              <legend>Branch {i + 1}</legend>
               <ConditionsEditor
                 value={b.when}
                 def={def}
@@ -215,7 +215,7 @@ export function StepPanel(props: {
               />
               {!readOnly && step.branches.length > 1 ? (
                 <button className="link danger" onClick={() => patch({ branches: step.branches.filter((_, j) => j !== i) })}>
-                  Hapus cabang
+                  Remove branch
                 </button>
               ) : null}
             </fieldset>
@@ -225,23 +225,23 @@ export function StepPanel(props: {
               className="link"
               onClick={() => patch({ branches: [...step.branches, { when: [{ field: def.fields[0]?.key ?? 'requester.department', op: 'eq', value: '' }], steps: [] }] })}
             >
-              + cabang
+              + branch
             </button>
           )}
-          <p className="muted small">Cabang pertama yang cocok dijalankan. Kalau tidak ada yang cocok, jalur "selain itu" dipakai.</p>
+          <p className="muted small">The first matching branch runs. If none match, the "otherwise" path is used.</p>
         </>
       ) : null}
       {step.type === 'parallel' ? (
         <>
-          <p className="muted small">{step.branches.length} cabang berjalan bersamaan. Semua harus selesai sebelum lanjut.</p>
+          <p className="muted small">{step.branches.length} branches run at the same time. All must finish before the flow continues.</p>
           {readOnly ? null : (
             <div className="inline">
               <button className="link" onClick={() => patch({ branches: [...step.branches, []] })}>
-                + cabang
+                + branch
               </button>
               {step.branches.length > 2 ? (
                 <button className="link danger" onClick={() => patch({ branches: step.branches.slice(0, -1) })}>
-                  Hapus cabang terakhir
+                  Remove last branch
                 </button>
               ) : null}
             </div>
@@ -251,7 +251,7 @@ export function StepPanel(props: {
       <Quotes citations={props.citations} target={step.id} />
       {readOnly ? null : (
         <button className="danger" onClick={props.onDelete}>
-          Hapus langkah
+          Delete step
         </button>
       )}
     </div>
@@ -263,7 +263,7 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
   const setTable = (i: number, patch: object) => onChange({ ...def, tables: def.tables.map((t, j) => (j === i ? { ...t, ...patch } : t)) });
   return (
     <div className="panel">
-      {def.tables.length === 0 ? <p className="muted">Belum ada tabel aturan.</p> : null}
+      {def.tables.length === 0 ? <p className="muted">No rule tables yet.</p> : null}
       {def.tables.map((table, ti) => {
         const setRows = (rows: typeof table.rows) => setTable(ti, { rows });
         const move = (i: number, d: number) => {
@@ -276,17 +276,17 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
             <legend>
               <input value={table.name} onChange={(e) => setTable(ti, { name: e.target.value })} disabled={readOnly} />
             </legend>
-            <p className="muted small">Baris pertama yang cocok dipakai. Baris terakhir harus tanpa kondisi (default).</p>
+            <p className="muted small">The first matching row is used. The last row must have no conditions (default).</p>
             {table.rows.map((row, ri) => (
               <div key={row.id} className="rule-row">
                 <div className="rule-when">
                   <span className="rule-n num">{ri + 1}</span>
                   {row.when.length ? (
                     <span className="limits">
-                      Jika
+                      If
                       {conditionParts(def, row.when).map((part, k) => (
                         <span key={k} className="limit">
-                          {k > 0 ? <span className="limit-and">dan</span> : null}
+                          {k > 0 ? <span className="limit-and">and</span> : null}
                           {part.label}
                           <span className="limit-value num">
                             <span className="limit-op">{part.op}</span> {part.value}
@@ -295,7 +295,7 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
                       ))}
                     </span>
                   ) : (
-                    'Selain itu (default)'
+                    'Otherwise (default)'
                   )}
                 </div>
                 <ConditionsEditor value={row.when} def={def} disabled={readOnly} onChange={(when) => setRows(table.rows.map((r, j) => (j === ri ? { ...r, when } : r)))} />
@@ -317,7 +317,7 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
                       ↓
                     </button>
                     <button className="link danger" disabled={table.rows.length === 1} onClick={() => setRows(table.rows.filter((_, j) => j !== ri))}>
-                      Hapus baris
+                      Remove row
                     </button>
                   </div>
                 )}
@@ -334,10 +334,10 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
                     setRows([...table.rows.slice(0, -1), fresh, table.rows[table.rows.length - 1]!]);
                   }}
                 >
-                  + baris
+                  + row
                 </button>
                 <button className="link danger" onClick={() => onChange({ ...def, tables: def.tables.filter((_, j) => j !== ti) })}>
-                  Hapus tabel
+                  Delete table
                 </button>
               </div>
             )}
@@ -349,11 +349,11 @@ export function TablesPanel(props: { def: FlowDefinition; roles: string[]; citat
           onClick={() =>
             onChange({
               ...def,
-              tables: [...def.tables, { id: uniqueId(def, 'tabel'), name: 'Tabel baru', rows: [{ id: 'default', when: [], approver: { kind: 'manager', level: 1 } }] }],
+              tables: [...def.tables, { id: uniqueId(def, 'tabel'), name: 'New table', rows: [{ id: 'default', when: [], approver: { kind: 'manager', level: 1 } }] }],
             })
           }
         >
-          + Tabel aturan
+          + Rule table
         </button>
       )}
     </div>
@@ -380,11 +380,11 @@ export function SimPanel({ def }: { def: FlowDefinition }) {
   };
   return (
     <div className="panel">
-      <p className="muted small">Memakai diagram dan tabel yang sedang tampil, termasuk perubahan yang belum disimpan.</p>
+      <p className="muted small">Uses the diagram and tables as shown, including unsaved changes.</p>
       <label>
-        <span>Pemohon</span>
+        <span>Requester</span>
         <select value={requesterId} onChange={(e) => setRequester(e.target.value)}>
-          <option value="">Pilih</option>
+          <option value="">Select</option>
           {users.map((u) => (
             <option key={u.id} value={u.id}>
               {u.name} ({u.department})
@@ -394,7 +394,7 @@ export function SimPanel({ def }: { def: FlowDefinition }) {
       </label>
       <DynamicForm fields={def.fields} value={data} onChange={setData} />
       <button className="primary" disabled={!requesterId} onClick={run}>
-        Simulasikan
+        Run simulation
       </button>
       {error ? <p className="error">{error}</p> : null}
       {result ? (
@@ -402,13 +402,13 @@ export function SimPanel({ def }: { def: FlowDefinition }) {
           {result.steps.map((s: any) => (
             <li key={s.stepId} className={s.error ? 'bad' : s.skipped ? 'skipped' : 'ok'}>
               <strong>{s.name}</strong>
-              {s.type === 'notify' ? ' (notifikasi)' : ''}:{' '}
-              {s.error ?? (s.skipped ? 'tidak diperlukan' : s.userIds.map((id: string) => result.names[id] ?? id).join(' atau '))}
+              {s.type === 'notify' ? ' (notification)' : ''}:{' '}
+              {s.error ?? (s.skipped ? 'not required' : s.userIds.map((id: string) => result.names[id] ?? id).join(' or '))}
               <div className="muted small">
                 {[
-                  s.parallelIn ? 'paralel' : '',
-                  s.tableRow ? `tabel ${s.tableRow.tableId}, baris ${s.tableRow.rowId}` : '',
-                  s.reroutedToManager ? 'dialihkan ke atasan karena pemohon adalah approver' : s.requesterExcluded ? 'pemohon dikeluarkan dari daftar approver' : '',
+                  s.parallelIn ? 'parallel' : '',
+                  s.tableRow ? `table ${s.tableRow.tableId}, row ${s.tableRow.rowId}` : '',
+                  s.reroutedToManager ? 'rerouted to the superior because the requester is the approver' : s.requesterExcluded ? 'requester removed from the approver list' : '',
                 ]
                   .filter(Boolean)
                   .join(' · ')}
@@ -469,41 +469,41 @@ export function ChatPanel(props: { draftId: string; chat: any[]; sop: any; readO
             SOP: <a href={`/api/admin/sop/${props.sop.id}`} target="_blank" rel="noreferrer">{props.sop.name}</a>
           </span>
         ) : (
-          <span className="muted">Belum ada SOP</span>
+          <span className="muted">No SOP yet</span>
         )}
         {props.readOnly ? null : (
           <button className="link" onClick={() => setShowSop(!showSop)}>
-            {props.sop ? 'Ganti' : 'Unggah SOP'}
+            {props.sop ? 'Replace' : 'Upload SOP'}
           </button>
         )}
       </div>
       {showSop ? (
         <div className="sop-form">
           <input type="file" accept=".txt,.md,text/plain" onChange={(e) => readFile(e.target.files?.[0])} />
-          <textarea placeholder="atau tempel teks SOP di sini" value={sopText} onChange={(e) => setSopText(e.target.value)} rows={6} />
+          <textarea placeholder="or paste the SOP text here" value={sopText} onChange={(e) => setSopText(e.target.value)} rows={6} />
           <button className="primary" disabled={busy || !sopText.trim()} onClick={saveSop}>
-            Simpan SOP
+            Save SOP
           </button>
         </div>
       ) : null}
       <div className="messages">
         {props.chat.length === 0 ? (
-          <p className="muted small">Unggah SOP lalu minta AI menyusun draf, atau jelaskan aturannya. AI hanya mengubah draf ini; pengaktifan tetap oleh orang kedua.</p>
+          <p className="muted small">Upload the SOP and ask the AI to draft the flow, or describe the rules. The AI only changes this draft; activating it is a separate step.</p>
         ) : null}
         {props.chat.map((m, i) => (
           <div key={i} className={`msg ${m.role}`}>
             {m.content}
           </div>
         ))}
-        {busy ? <div className="msg assistant muted">Menyusun...</div> : null}
+        {busy ? <div className="msg assistant muted">Drafting…</div> : null}
         <div ref={end} />
       </div>
       {error ? <p className="error">{error}</p> : null}
       {props.readOnly ? null : (
         <div className="composer">
-          <textarea placeholder="Contoh: susun alur dari SOP ini" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} />
+          <textarea placeholder="Example: draft the flow from this SOP" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} />
           <button className="primary" disabled={busy || !message.trim()} onClick={send}>
-            Kirim
+            Send
           </button>
         </div>
       )}

@@ -23,7 +23,7 @@ const Handles = () => (
   </>
 );
 
-const KIND: Record<Step['type'], string> = { approval: 'Approval', condition: 'Kondisi', parallel: 'Paralel', notify: 'Notifikasi' };
+const KIND: Record<Step['type'], string> = { approval: 'Approval', condition: 'Condition', parallel: 'Parallel', notify: 'Notification' };
 
 function StepNode({ data }: NodeProps) {
   const ctx = useContext(DiagramCtx);
@@ -32,17 +32,17 @@ function StepNode({ data }: NodeProps) {
     step.type === 'approval'
       ? approverText(step.approver, ctx.def)
       : step.type === 'notify'
-        ? `ke ${approverText(step.to, ctx.def)}`
+        ? `to ${approverText(step.to, ctx.def)}`
         : step.type === 'parallel'
-          ? 'semua cabang harus setuju'
-          : 'cabang pertama yang cocok';
+          ? 'all branches must approve'
+          : 'first matching branch';
   return (
     <div className={`node ${step.type} ${ctx.selected === step.id ? 'selected' : ''}`} onClick={() => ctx.onSelect(step.id)}>
       <Handles />
       <div className="kind">
         <span className="kind-mark" aria-hidden="true" />
         {KIND[step.type]}
-        {step.type === 'approval' && step.slaHours ? <span className="node-sla num">SLA {step.slaHours} j</span> : null}
+        {step.type === 'approval' && step.slaHours ? <span className="node-sla num">SLA {step.slaHours} h</span> : null}
       </div>
       <div className="title">{step.name}</div>
       <div className="sub">{sub}</div>
@@ -61,7 +61,7 @@ function SlotNode({ data }: NodeProps) {
       {ctx.readOnly ? (
         <div className="dot" />
       ) : (
-        <button className="add" title="Tambah langkah di sini" aria-label="Tambah langkah di sini" onClick={() => setOpen(!open)}>
+        <button className="add" title="Add a step here" aria-label="Add a step here" onClick={() => setOpen(!open)}>
           <Plus size={14} />
         </button>
       )}

@@ -60,7 +60,7 @@ export function layout(def: FlowDefinition): { nodes: Node[]; edges: Edge[] } {
       step.type === 'condition'
         ? [
             ...step.branches.map((b, i) => ({ steps: b.steps, branch: i as number | 'otherwise', label: conditionText(def, b.when) })),
-            { steps: step.otherwise, branch: 'otherwise' as const, label: 'selain itu' },
+            { steps: step.otherwise, branch: 'otherwise' as const, label: 'otherwise' },
           ]
         : step.branches.map((b, i) => ({ steps: b, branch: i as number | 'otherwise', label: undefined }));
     const widths = branches.map((b) => widthOfSeq(b.steps));
@@ -80,10 +80,10 @@ export function layout(def: FlowDefinition): { nodes: Node[]; edges: Edge[] } {
     return { entry: step.id, exit: join, bottom: bottom + GAP_Y + 10 };
   };
 
-  nodes.push({ id: 'start', type: 'terminal', position: { x: -W / 2, y: 0 }, data: { label: 'Permintaan dikirim' }, style: { width: W } });
+  nodes.push({ id: 'start', type: 'terminal', position: { x: -W / 2, y: 0 }, data: { label: 'Request submitted' }, style: { width: W } });
   const root = placeSeq(def.steps, { parent: null, branch: 0 }, 0, 34 + GAP_Y);
   edge('start', root.first);
-  nodes.push({ id: 'end', type: 'terminal', position: { x: -W / 2, y: root.bottom + GAP_Y }, data: { label: 'Disetujui' }, style: { width: W } });
+  nodes.push({ id: 'end', type: 'terminal', position: { x: -W / 2, y: root.bottom + GAP_Y }, data: { label: 'Approved' }, style: { width: W } });
   edge(root.last, 'end');
   return { nodes, edges };
 }
