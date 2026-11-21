@@ -416,6 +416,12 @@ legend input { font-weight: 650; }
 .msg { padding: 0.55rem 0.75rem; border-radius: var(--r); max-width: 92%; white-space: pre-wrap; }
 .msg.user { align-self: flex-end; background: var(--blue); color: #fff; }
 .msg.assistant { align-self: flex-start; background: var(--surface-sunk); border: 1px solid var(--line); }
+.msg.md { white-space: normal; }
+.msg.md p, .msg.md ul, .msg.md ol { margin: 0 0 0.5rem; }
+.msg.md > :last-child { margin-bottom: 0; }
+.msg.md ul, .msg.md ol { padding-left: 1.25rem; }
+.msg.md li + li { margin-top: 0.2rem; }
+.msg.md code { font-family: var(--mono); font-size: 0.85em; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 3px; padding: 0 0.25rem; }
 .composer { display: flex; gap: 0.5rem; padding: 0.7rem 1.1rem; border-top: 1px solid var(--line); }
 .composer textarea { min-height: 0; }
 .chat > .error { padding: 0 1.1rem; }

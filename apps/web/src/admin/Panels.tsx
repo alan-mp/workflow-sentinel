@@ -4,6 +4,7 @@ import { api } from '../api';
 import { DynamicForm } from '../pages';
 import { X } from 'lucide-react';
 import { conditionParts, roleLabel, uniqueId } from './edit';
+import { blocks, sopTitle, type Inline } from '../markdown';
 
 type AnyApprover = { kind: string; level?: number | string; role?: string; userId?: string; tableId?: string };
 
@@ -421,6 +422,51 @@ export function SimPanel({ def }: { def: FlowDefinition }) {
   );
 }
 
+function Rich({ parts }: { parts: Inline[] }) {
+  return (
+    <>
+      {parts.map((p, i) => (p.kind === 'bold' ? <strong key={i}>{p.text}</strong> : p.kind === 'code' ? <code key={i}>{p.text}</code> : <span key={i}>{p.text}</span>))}
+    </>
+  );
+}
+
+/** Assistant replies are light Markdown; user messages are shown exactly as typed. */
+function Message({ role, content }: { role: string; content: string }) {
+  if (role !== 'assistant') return <div className={`msg ${role}`}>{content}</div>;
+  return (
+    <div className="msg assistant md">
+      {blocks(content).map((b, i) =>
+        b.kind === 'p' ? (
+          <p key={i}>
+            {b.lines.map((l, j) => (
+              <span key={j}>
+                {j > 0 ? <br /> : null}
+                <Rich parts={l} />
+              </span>
+            ))}
+          </p>
+        ) : b.kind === 'ul' ? (
+          <ul key={i}>
+            {b.items.map((it, j) => (
+              <li key={j}>
+                <Rich parts={it} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <ol key={i} start={b.start}>
+            {b.items.map((it, j) => (
+              <li key={j}>
+                <Rich parts={it} />
+              </li>
+            ))}
+          </ol>
+        ),
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel(props: { draftId: string; chat: any[]; sop: any; readOnly: boolean; beforeSend: () => Promise<void>; onDone: () => void }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -452,7 +498,7 @@ export function ChatPanel(props: { draftId: string; chat: any[]; sop: any; readO
     });
   const saveSop = () =>
     run(async () => {
-      await api('POST', `/admin/drafts/${props.draftId}/sop`, { name: sopName || 'SOP', content: sopText });
+      await api('POST', `/admin/drafts/${props.draftId}/sop`, { name: sopName || sopTitle(sopText), content: sopText });
       setShowSop(false);
     });
   const readFile = async (file?: File) => {
@@ -491,9 +537,7 @@ export function ChatPanel(props: { draftId: string; chat: any[]; sop: any; readO
           <p className="muted small">Upload the SOP and ask the AI to draft the flow, or describe the rules. The AI only changes this draft; activating it is a separate step.</p>
         ) : null}
         {props.chat.map((m, i) => (
-          <div key={i} className={`msg ${m.role}`}>
-            {m.content}
-          </div>
+          <Message key={i} role={m.role} content={m.content} />
         ))}
         {busy ? <div className="msg assistant muted">Drafting…</div> : null}
         <div ref={end} />

@@ -24,6 +24,16 @@ therefore the pilot in step 6, not more building.
 | 6 | Design a Cheap Test | **Designed, not yet run** | Three pilot flows and pass marks are fixed below |
 | 7 | Stress-Test the Idea | **Risks known, one unresolved** | Nobody yet owns the organization structure |
 
+## Target user, why now, differentiating angle
+- **Target user:** office staff of one manufacturer who file requests, the managers and function heads who approve
+  them, and the process owners (HR, finance, legal, engineering) who own the rules. First users: the in-house IT team.
+- **Why now:** internal systems keep multiplying and each brings its own approval logic; reorganizations are
+  frequent and have to be applied system by system; audit pressure for a traceable record is rising; and LLMs with
+  structured output plus MCP make it feasible for one developer to build and run this.
+- **Differentiating angle:** one place for approval rules across systems. Approvers are computed from a maintained
+  organization tree instead of stored per system, flows are versioned data owned by process owners and drafted by AI
+  with checked SOP citations, and other systems connect through an API and signed webhooks.
+
 ## How this was validated
 Three kinds of evidence, kept apart so that a reader can weigh each:
 

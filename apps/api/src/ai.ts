@@ -48,7 +48,7 @@ When nothing is blocking, call propose_draft with the complete definition. For e
 
 Approvers are referenced by role name, by management level above the requester, or through a rule table. Use role names from the provided list. If the SOP names a role that is not in the list, use a sensible snake_case name and tell the admin that this role must exist in the directory before the flow can run.
 
-Reply to the admin in English, briefly and plainly.
+Reply in the language the admin writes in (for example Indonesian or English), briefly and plainly. Keep quotes from the SOP, role names, field keys, and ids exactly as they are; do not translate them.
 
 ## Definition format (JSON)
 
