@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BUILTIN_FIELDS, UNIT_LEVELS, UNIT_LEVEL_LABEL, type Condition, type FlowDefinition, type Step } from '@sentinel/engine/model';
 import { api } from '../api';
-import { DynamicForm } from '../pages';
+import { DynamicForm, withUnchecked } from '../pages';
 import { X } from 'lucide-react';
 import { conditionParts, roleLabel, uniqueId } from './edit';
 import { blocks, sopTitle, type Inline } from '../markdown';
@@ -374,7 +374,7 @@ export function SimPanel({ def }: { def: FlowDefinition }) {
     setError('');
     setResult(null);
     try {
-      setResult(await api('POST', '/admin/simulate', { definition: def, requesterId, data }));
+      setResult(await api('POST', '/admin/simulate', { definition: def, requesterId, data: withUnchecked(def.fields, data) }));
     } catch (e: any) {
       setError(e.body?.issues?.find((i: any) => i.level === 'error')?.message ?? e.message);
     }

@@ -30,6 +30,10 @@ export function useLoad<T>(url: string, deps: unknown[] = []): [T | undefined, (
 
 const fmtNumber = (v: unknown) => Number(v).toLocaleString('en-US');
 
+/** A checkbox the user never touched means "no": send false instead of leaving a required yes/no field out. */
+export const withUnchecked = (fields: Field[], data: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries([...fields.filter((f) => f.type === 'boolean').map((f) => [f.key, false] as const), ...Object.entries(data)]);
+
 export function DynamicForm(props: { fields: Field[]; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void; disabled?: boolean }) {
   const set = (key: string, v: unknown) => {
     const next = { ...props.value };
@@ -504,7 +508,7 @@ export function NewRequest({ flowKey }: { flowKey?: string }) {
     setBusy(true);
     setError('');
     try {
-      const res = await api('POST', '/requests', { flowKey, data });
+      const res = await api('POST', '/requests', { flowKey, data: withUnchecked(flow.fields, data) });
       location.hash = `#/requests/${res.id}`;
     } catch (err: any) {
       setError(err.message);
@@ -595,7 +599,7 @@ function InsightPanel({ insight }: { insight: any }) {
   const flags: any[] = insight.anomalies ?? [];
   return (
     <section className="insight" aria-label="Summary">
-      <p className="insight-label">Summary · written by AI</p>
+      <p className="insight-label">Summary at filing · written by AI</p>
       {insight.status === 'ready' ? (
         <p className="insight-text">{insight.summary}</p>
       ) : insight.status === 'pending' ? (
@@ -721,7 +725,7 @@ export function RequestDetail(props: { id: string; embedded?: boolean; closeHref
           className="decision"
           onSubmit={(e) => {
             e.preventDefault();
-            run('resubmit', () => api('POST', `/requests/${id}/resubmit`, { data: data ?? r.data }));
+            run('resubmit', () => api('POST', `/requests/${id}/resubmit`, { data: withUnchecked(r.fields, data ?? r.data) }));
           }}
         >
           <h3>Revise and resubmit</h3>

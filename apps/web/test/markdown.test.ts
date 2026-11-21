@@ -28,3 +28,16 @@ describe('balasan AI berformat Markdown', () => {
     expect(sopTitle('   ')).toBe('SOP');
   });
 });
+
+import { withUnchecked } from '../src/pages';
+
+describe('kotak centang yang tidak disentuh', () => {
+  it('dikirim sebagai false, bukan dihilangkan', () => {
+    const fields = [
+      { key: 'is_international', label: 'Luar negeri', type: 'boolean' as const },
+      { key: 'cost', label: 'Biaya', type: 'number' as const },
+    ];
+    expect(withUnchecked(fields, { cost: 3_000_000 })).toEqual({ is_international: false, cost: 3_000_000 });
+    expect(withUnchecked(fields, { is_international: true })).toEqual({ is_international: true });
+  });
+});
