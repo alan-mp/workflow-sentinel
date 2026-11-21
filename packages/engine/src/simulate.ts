@@ -1,7 +1,7 @@
-import { flattenSteps, type DirectApprover, type FlowDefinition } from './definition';
+import { flattenSteps, type Condition, type DirectApprover, type FlowDefinition, type Step } from './definition';
 import { requesterFacts } from './org';
 import { resolveApprovers, resolveDirect, validateData, walk } from './routing';
-import { buildFacts } from './rules';
+import { buildFacts, matches } from './rules';
 import { EngineError, type Directory, type User } from './types';
 
 export interface SimulatedStep {
@@ -103,6 +103,17 @@ export interface CoverageGap {
  */
 export async function coverageGaps(definition: FlowDefinition, requester: User, directory: Directory, now: Date = new Date()): Promise<CoverageGap[]> {
   const gaps: CoverageGap[] = [];
+  // Facts about this requester; form fields stay empty because the test runs without a request.
+  const facts = buildFacts(definition.fields, {}, requester, await requesterFacts(requester, directory, now));
+  /**
+   * Whether this requester can take a branch: conditions on the requester alone can be decided now;
+   * any condition on form data might hold, so such a branch counts as reachable.
+   */
+  const reach = async (when: Condition[]): Promise<'yes' | 'no' | 'maybe'> => {
+    const own = when.filter((c) => c.field.startsWith('requester.'));
+    if (own.length && !(await matches(own, facts))) return 'no';
+    return own.length === when.length ? 'yes' : 'maybe';
+  };
   const attempt = async (spec: DirectApprover, at: Omit<CoverageGap, 'message' | 'userId'>) => {
     try {
       await resolveDirect(spec, requester, directory, { now, flowKey: definition.key });
@@ -110,17 +121,37 @@ export async function coverageGaps(definition: FlowDefinition, requester: User, 
       gaps.push({ ...at, userId: requester.id, message: e instanceof EngineError ? e.message : String(e) });
     }
   };
-  for (const step of flattenSteps(definition.steps)) {
-    if (step.type !== 'approval') continue;
-    const at = { stepId: step.id, stepName: step.name };
-    if (step.approver.kind !== 'table') {
-      await attempt(step.approver, at);
-      continue;
+  const visit = async (steps: Step[]): Promise<void> => {
+    for (const step of steps) {
+      if (step.type === 'parallel') {
+        for (const branch of step.branches) await visit(branch);
+      } else if (step.type === 'condition') {
+        let decided = false;
+        for (const branch of step.branches) {
+          const r = await reach(branch.when);
+          if (r === 'no') continue;
+          await visit(branch.steps);
+          // First matching branch wins: after a branch this requester always takes, the rest are unreachable.
+          if (r === 'yes') {
+            decided = true;
+            break;
+          }
+        }
+        if (!decided) await visit(step.otherwise);
+      } else if (step.type === 'approval') {
+        const at = { stepId: step.id, stepName: step.name };
+        if (step.approver.kind !== 'table') {
+          await attempt(step.approver, at);
+          continue;
+        }
+        const table = definition.tables.find((t) => t.id === (step.approver as { tableId: string }).tableId);
+        for (const row of table?.rows ?? []) {
+          if (row.approver.kind === 'none' || (await reach(row.when)) === 'no') continue;
+          await attempt(row.approver, { ...at, tableRow: { tableId: table!.id, rowId: row.id } });
+        }
+      }
     }
-    const table = definition.tables.find((t) => t.id === (step.approver as { tableId: string }).tableId);
-    for (const row of table?.rows ?? []) {
-      if (row.approver.kind !== 'none') await attempt(row.approver, { ...at, tableRow: { tableId: table!.id, rowId: row.id } });
-    }
-  }
+  };
+  await visit(definition.steps);
   return gaps;
 }

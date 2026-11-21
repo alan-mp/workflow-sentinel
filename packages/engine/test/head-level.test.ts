@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { InMemoryDirectory, simulate, validateDefinition } from '../src';
+import { InMemoryDirectory, coverageGaps, simulate, validateDefinition } from '../src';
 import type { FlowDefinition } from '../src/definition';
 
 const leave: FlowDefinition = JSON.parse(readFileSync(new URL('../examples/leave.json', import.meta.url), 'utf8'));
@@ -37,4 +37,14 @@ describe('requester.head_of_level', () => {
     expect(await route('u_mgr')).toEqual(['Atasan langsung=u_gm', 'Atasan dari atasan=u_dir']);
     expect(await route('u_staff')).toEqual(['Atasan langsung=u_mgr', 'Atasan dari atasan=u_gm']);
   });
+
+  it('the coverage test skips branches a requester can never take, and still checks the ones that depend on the form', async () => {
+    const at = new Date('2026-11-22T00:00:00Z');
+    const gapsOf = async (id: string) => (await coverageGaps(leave, (await dir.getUser(id))!, dir, at)).map((g) => g.stepId);
+    // The division head never reaches "superior's superior"; the Director has no superior at all.
+    expect(await gapsOf('u_gm')).toEqual([]);
+    expect((await gapsOf('u_dir')).sort()).toEqual(['atasan', 'atasan_2']);
+    expect(await gapsOf('u_staff')).toEqual([]);
+  });
 });
+
