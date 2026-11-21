@@ -46,5 +46,19 @@ describe('requester.head_of_level', () => {
     expect((await gapsOf('u_dir')).sort()).toEqual(['atasan', 'atasan_2']);
     expect(await gapsOf('u_staff')).toEqual([]);
   });
+
+  it('also when the rule is written as "long and division head" before "long" (the form the AI drafter used)', async () => {
+    const at = new Date('2026-11-22T00:00:00Z');
+    const flat: FlowDefinition = structuredClone(leave);
+    const cond = flat.steps.find((x) => x.id === 'cuti_panjang') as any;
+    cond.branches = [
+      { when: [{ field: 'days', op: 'gt', value: 5 }, { field: 'requester.head_of_level', op: 'eq', value: 'divisi' }], steps: [{ type: 'approval', id: 'hr_manager', name: 'HR', approver: { kind: 'role', role: 'hr' } }] },
+      { when: [{ field: 'days', op: 'gt', value: 5 }], steps: [{ type: 'approval', id: 'atasan_2', name: 'Atasan dari atasan', approver: { kind: 'manager', level: 2 } }] },
+    ];
+    cond.otherwise = [];
+    const gapsOf = async (id: string) => (await coverageGaps(flat, (await dir.getUser(id))!, dir, at)).map((g) => g.stepId);
+    expect(await gapsOf('u_gm')).toEqual([]);
+    expect((await gapsOf('u_dir')).sort()).toEqual(['atasan', 'atasan_2']);
+  });
 });
 

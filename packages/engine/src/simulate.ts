@@ -105,14 +105,20 @@ export async function coverageGaps(definition: FlowDefinition, requester: User, 
   const gaps: CoverageGap[] = [];
   // Facts about this requester; form fields stay empty because the test runs without a request.
   const facts = buildFacts(definition.fields, {}, requester, await requesterFacts(requester, directory, now));
+  const key = (c: Condition) => JSON.stringify([c.field, c.op, c.value]);
   /**
-   * Whether this requester can take a branch: conditions on the requester alone can be decided now;
-   * any condition on form data might hold, so such a branch counts as reachable.
+   * Whether this requester can take a branch, given the branches before it (first match wins).
+   * Conditions on the requester alone are decided now. Conditions on form data might hold, except that a
+   * branch is unreachable when an earlier branch open to this requester asks for a subset of its form
+   * conditions: whenever this one would match, that one matches first.
    */
-  const reach = async (when: Condition[]): Promise<'yes' | 'no' | 'maybe'> => {
+  const reachable = async (when: Condition[], earlier: Condition[][]): Promise<{ ok: boolean; form: Condition[] }> => {
     const own = when.filter((c) => c.field.startsWith('requester.'));
-    if (own.length && !(await matches(own, facts))) return 'no';
-    return own.length === when.length ? 'yes' : 'maybe';
+    const form = when.filter((c) => !c.field.startsWith('requester.'));
+    if (own.length && !(await matches(own, facts))) return { ok: false, form };
+    const mine = new Set(form.map(key));
+    const shadowed = earlier.some((prev) => prev.every((c) => mine.has(key(c))));
+    return { ok: !shadowed, form };
   };
   const attempt = async (spec: DirectApprover, at: Omit<CoverageGap, 'message' | 'userId'>) => {
     try {
@@ -126,18 +132,15 @@ export async function coverageGaps(definition: FlowDefinition, requester: User, 
       if (step.type === 'parallel') {
         for (const branch of step.branches) await visit(branch);
       } else if (step.type === 'condition') {
-        let decided = false;
+        const earlier: Condition[][] = [];
         for (const branch of step.branches) {
-          const r = await reach(branch.when);
-          if (r === 'no') continue;
+          const r = await reachable(branch.when, earlier);
+          if (!r.ok) continue;
           await visit(branch.steps);
-          // First matching branch wins: after a branch this requester always takes, the rest are unreachable.
-          if (r === 'yes') {
-            decided = true;
-            break;
-          }
+          earlier.push(r.form);
         }
-        if (!decided) await visit(step.otherwise);
+        // "otherwise" is unreachable once a branch open to this requester has no form conditions.
+        if (!earlier.some((f) => f.length === 0)) await visit(step.otherwise);
       } else if (step.type === 'approval') {
         const at = { stepId: step.id, stepName: step.name };
         if (step.approver.kind !== 'table') {
@@ -145,8 +148,11 @@ export async function coverageGaps(definition: FlowDefinition, requester: User, 
           continue;
         }
         const table = definition.tables.find((t) => t.id === (step.approver as { tableId: string }).tableId);
+        const rowsBefore: Condition[][] = [];
         for (const row of table?.rows ?? []) {
-          if (row.approver.kind === 'none' || (await reach(row.when)) === 'no') continue;
+          const r = await reachable(row.when, rowsBefore);
+          if (r.ok) rowsBefore.push(r.form);
+          if (!r.ok || row.approver.kind === 'none') continue;
           await attempt(row.approver, { ...at, tableRow: { tableId: table!.id, rowId: row.id } });
         }
       }
