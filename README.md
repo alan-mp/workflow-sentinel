@@ -1,72 +1,122 @@
-# Workflow Sentinel (PoC)
+# Sentinel
 
-Aplikasi approval workflow internal: cuti/izin, akses IT, dan permintaan pembelian.
+[![CI](https://github.com/alan-mp/workflow-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/alan-mp/workflow-sentinel/actions/workflows/ci.yml)
 
-## Struktur
+Sentinel is an approval-workflow web application for leave, IT access, and purchase requests. The people who own an
+SOP turn it into a working, versioned approval flow with help from an AI drafter that cites the SOP for every rule.
+Approvers are computed from the organization structure, and every assignment and decision is recorded with its reason.
 
-- `packages/engine`: mesin alur tanpa I/O (definisi, tabel aturan, routing, pemisahan tugas, SLA, simulasi, versi).
-  Kondisi dan tabel aturan dievaluasi oleh [json-rules-engine](https://github.com/CacheControl/json-rules-engine) (versi dikunci) lewat `src/rules.ts`;
-  browser hanya memakai `@sentinel/engine/model` (bentuk definisi dan pemeriksaannya), evaluasi aturan hanya di server.
-- `apps/api`: Cloudflare Worker (Hono) dengan D1, R2, Cron Trigger, adapter ERP/email, dan penyusun draf AI.
-- `apps/web`: React + Vite (kotak masuk, permintaan, editor visual, chat).
+**Live demo:** https://workflow-sentinel-test.developer-24e.workers.dev
 
-## Menjalankan secara lokal
+| Demo account (password `demo1234`) | Role |
+|---|---|
+| `budi@contoh.test` | Requester |
+| `maya@contoh.test` | Approver (unit head) |
+| `fajar@contoh.test` | Approver (finance authority) |
+| `hana@contoh.test` | Process owner and organization owner |
+| `hadi@contoh.test` | System administrator (can do everything) |
+
+The demo runs on sample data. Demo flow and step names are in Indonesian because they are user-entered data.
+
+![Approval inbox with SLA tolerance bands](docs/screenshots/inbox.png)
+
+## What it does
+- **Requests and inbox.** Submit a request, follow where it is, and decide a queue of approvals with search, filters,
+  SLA bands, and bulk approve. Works on desktop and phone.
+- **AI flow drafter.** Paste or upload an SOP and ask for a flow. The AI proposes steps and rule tables and attaches a
+  quote from the SOP to each rule; quotes are checked against the SOP text, and anything not found is flagged. The AI
+  can only edit a draft. It asks a question when the SOP is ambiguous instead of guessing.
+- **Visual flow editor.** Diagram, step panel, rule tables, simulation ("who would this request go to?"), and
+  validation that no path can finish without a human approval.
+- **Organization master.** A unit tree with one head per unit, acting heads, escalation over vacancies, time-boxed
+  reporting exceptions, and a separate authority matrix. A coverage test finds people whose approval path would dead-end.
+- **Controls.** A requester can never approve their own request; flow and organization changes need a second person;
+  the audit trail is append-only; active flow versions are immutable.
+- **MCP server.** Every feature is also available to AI assistants at `/mcp` through OAuth, with exactly the
+  signed-in user's permissions.
+
+![Organization tree with structural findings](docs/screenshots/organization.png)
+![Flow editor with rule tables](docs/screenshots/flow-editor.png)
+
+## Documentation
+| Document | Contents |
+|---|---|
+| [docs/validation.md](docs/validation.md) | 7-step idea validation: result, sources, cheap tests, risk register ([full report](docs/validation-report.html)) |
+| [docs/PRD.md](docs/PRD.md) | One-page product requirements with acceptance criteria |
+| [docs/spec.md](docs/spec.md) | Data model, interfaces, acceptance tests, deployment, revisions after review |
+| [docs/architecture.md](docs/architecture.md) | Architecture diagram and design decisions |
+| [CLAUDE.md](CLAUDE.md), [.cursorrules](.cursorrules) | Rules for AI coding assistants working in this repository |
+| [apps/web/PRODUCT.md](apps/web/PRODUCT.md), [apps/web/DESIGN.md](apps/web/DESIGN.md) | Product context and design system (Indonesian) |
+
+## Stack
+TypeScript throughout. React 18 + Vite for the web app; Hono on Cloudflare Workers for the API; D1 (SQLite), R2, and KV
+for storage; `json-rules-engine` for rule evaluation; Claude through Cloudflare AI Gateway for the drafter; the
+Model Context Protocol SDK and Cloudflare's OAuth provider for the MCP server; Vitest for tests.
+
+```
+packages/engine   Pure domain logic: flow definitions, validation, routing, organization tree, SLA, simulation
+apps/api          Cloudflare Worker: API, persistence, AI drafter, MCP server, OAuth consent, cron
+apps/web          React single-page app
+```
+
+## Run locally
+Requires Node.js 22 or later.
 
 ```bash
 npm install
-npm test
-npm run db:setup    # buat database lokal + data contoh
-npm run dev         # http://localhost:8787
+npm run db:setup     # create the local database with demo data
+npm run dev          # http://localhost:8787
 ```
 
-Akun contoh (password `demo1234`): `budi@contoh.test` (pemohon), `maya@contoh.test` (atasan),
-`fajar@contoh.test` (finance), `hana@contoh.test` dan `dewi@contoh.test` (pemilik proses cuti dan pembelian),
-`irfan@contoh.test` dan `sari@contoh.test` (pemilik proses akses IT), `hadi@contoh.test` (admin sistem).
+```bash
+npm run typecheck    # TypeScript, all packages
+npm test             # 98 unit and API tests
+npm run build        # production build of the web app
+```
 
-Pemilik proses menyusun dan mengaktifkan alur miliknya; admin sistem hanya menunjuk pemilik dan mengimpor direktori.
+The AI drafter is off locally because it needs the Cloudflare AI binding; everything else works offline.
 
-## Master organisasi
+## CI/CD
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: dependency audit,
+typecheck, all tests, and a production build, and keeps the built web app as an artifact. Deployment to the test
+environment is a deliberate manual step (`npm run deploy:test`), so no cloud credentials are stored in GitHub.
 
-Atasan tidak disimpan per orang. Ia dihitung dari pohon unit (`org_units`) dengan urutan tetap: pengecualian pelaporan yang
-masih berlaku, lalu kepala unit atau Plt, lalu naik ke unit di atasnya kalau kosong. Wewenang ("siapa berhak menyetujui hal
-ini") ada di matriks wewenang dan bisa dibatasi ke satu cabang unit. Setiap penunjukan approver menyimpan alasannya.
+Monitoring: Workers observability (logs and traces) is enabled, and AI Gateway records every AI request with its cost.
 
-Perubahan struktur diusulkan pemilik master organisasi (contoh: `hana@contoh.test`, `dewi@contoh.test`), ditinjau pemilik lain,
-lalu berlaku pada tanggalnya; tugas yang masih terbuka dipindahkan mengikuti struktur baru. Menu Organisasi menampilkan pohon,
-temuan risiko, dan uji cakupan. Isi awal diimpor admin sistem: `POST /api/org/import/units` (CSV `id,name,level,parent_id`)
-lalu `POST /api/admin/directory` (CSV `id,email,name,unit_id,title,is_admin`).
-
-Chat AI butuh `AI_GATEWAY_ID` (lihat bagian AI di bawah).
-
-## Server MCP
-
-Semua fitur Sentinel tersedia sebagai tool MCP di `https://<host>/mcp` (Streamable HTTP, tanpa state). Klien masuk lewat
-OAuth: pengguna login dan menyetujui akses di `/authorize`, lalu setiap tool berjalan sebagai pengguna itu dengan hak akses
-yang sama persis dengan di aplikasi web, dan tercatat di audit yang sama. Daftar tool ada di `apps/api/src/mcp.ts`.
-
-Menyambungkan dari Claude Code: `claude mcp add --transport http sentinel https://<host>/mcp`, lalu `/mcp` untuk login.
-Butuh KV namespace yang di-bind sebagai `OAUTH_KV`; tanpa itu endpoint MCP mati dan aplikasi tetap berjalan.
-
-## AI lewat Cloudflare AI Gateway
-
-Cara utama tidak memakai kunci apa pun. Worker memanggil Claude lewat binding `AI` ke sebuah AI Gateway, dan pemakaian
-ditagih ke kredit Cloudflare (Unified Billing):
-
-1. Di dashboard Cloudflare: AI > AI Gateway, buat gateway (atau pakai yang ada) dan isi kredit di "Credits Available".
-2. Isi nama gateway di `AI_GATEWAY_ID` pada `wrangler.jsonc`, lalu deploy.
-
-Alternatif dengan kunci Anthropic sendiri: kosongkan `AI_GATEWAY_ID`, isi `AI_GATEWAY_URL`, lalu simpan
-`ANTHROPIC_API_KEY` (dan `AI_GATEWAY_TOKEN` untuk gateway yang terautentikasi) dengan `wrangler secret put`.
-
-## Deploy ke Cloudflare
-
+## Deploy manually
 ```bash
 cd apps/api
-npx wrangler d1 create sentinel --location apac     # salin database_id ke wrangler.jsonc
+npx wrangler d1 create sentinel --location apac          # copy the id into wrangler.jsonc
 npx wrangler r2 bucket create sentinel-files
+npx wrangler kv namespace create sentinel-oauth          # copy the id into wrangler.jsonc
 npx wrangler d1 migrations apply sentinel --remote
-npx wrangler secret put ANTHROPIC_API_KEY
 cd ../.. && npm run deploy
 ```
 
-Isi `AI_GATEWAY_URL` di `wrangler.jsonc`. Unit dan karyawan diimpor lewat menu Organisasi > Pengaturan.
+The test environment deploys with `CLOUDFLARE_ACCOUNT_ID=<account id> npm run deploy:test`; the account is read from
+the environment and is not written in the repository.
+
+### AI without keys
+The drafter reaches Claude through the Worker `AI` binding and a Cloudflare AI Gateway with Unified Billing, so the
+Worker stores no provider key and no gateway token.
+
+1. In the Cloudflare dashboard, create an AI Gateway and add credits under "Credits Available".
+2. Add `"ai": { "binding": "AI" }` and set `AI_GATEWAY_ID` to the gateway name in `wrangler.jsonc` (see `env.test`), then deploy.
+
+To use your own Anthropic key instead, leave `AI_GATEWAY_ID` empty, set `AI_GATEWAY_URL`, and store
+`ANTHROPIC_API_KEY` with `wrangler secret put`.
+
+### MCP
+Connect an MCP client to `https://<host>/mcp`. From Claude Code:
+
+```bash
+claude mcp add --transport http sentinel https://workflow-sentinel-test.developer-24e.workers.dev/mcp
+```
+
+Then run `/mcp` to sign in. The tool list is in [`apps/api/src/mcp.ts`](apps/api/src/mcp.ts).
+
+## Security
+- No secrets in the repository; the demo password is sample data only.
+- Sessions are HttpOnly, SameSite=Strict cookies; passwords are stored as PBKDF2 hashes.
+- A request is visible only to its requester, approvers, and their delegates.
+- The AI drafter never receives employee data, and its output passes the same validation as a human edit.
