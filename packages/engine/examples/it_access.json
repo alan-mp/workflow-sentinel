@@ -1,0 +1,40 @@
+{
+  "key": "it_access",
+  "name": "Permintaan Akses IT",
+  "fields": [
+    { "key": "system", "label": "Sistem", "type": "string" },
+    { "key": "access_level", "label": "Tingkat akses", "type": "string" },
+    { "key": "justification", "label": "Alasan", "type": "string" }
+  ],
+  "tables": [
+    {
+      "id": "pemilik_sistem", "name": "Pemilik sistem",
+      "rows": [
+        { "id": "erp", "when": [{ "field": "system", "op": "eq", "value": "erp" }], "approver": { "kind": "role", "role": "erp_owner" } },
+        { "id": "lainnya", "when": [], "approver": { "kind": "role", "role": "it_manager" } }
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "type": "parallel", "id": "atasan_dan_pemilik", "name": "Atasan dan pemilik sistem",
+      "branches": [
+        [{ "type": "approval", "id": "atasan", "name": "Atasan langsung", "approver": { "kind": "manager", "level": 1 }, "slaHours": 24 }],
+        [{ "type": "approval", "id": "pemilik", "name": "Pemilik sistem", "approver": { "kind": "table", "tableId": "pemilik_sistem" }, "slaHours": 24 }]
+      ]
+    },
+    {
+      "type": "condition", "id": "akses_admin", "name": "Akses admin?",
+      "branches": [
+        {
+          "when": [{ "field": "access_level", "op": "eq", "value": "admin" }],
+          "steps": [
+            { "type": "approval", "id": "security", "name": "IT Security", "approver": { "kind": "role", "role": "it_security" }, "slaHours": 24 }
+          ]
+        }
+      ],
+      "otherwise": []
+    },
+    { "type": "notify", "id": "info_helpdesk", "name": "Info ke Helpdesk", "to": { "kind": "role", "role": "it_helpdesk" }, "message": "Akses disetujui, mohon dibuatkan." }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "key": "purchase",
+  "name": "Permintaan Pembelian",
+  "fields": [
+    { "key": "amount", "label": "Nominal (Rp)", "type": "number" },
+    { "key": "category", "label": "Kategori", "type": "string" },
+    { "key": "description", "label": "Keterangan", "type": "string" }
+  ],
+  "tables": [
+    {
+      "id": "approver_keuangan", "name": "Approver keuangan berdasarkan nominal",
+      "rows": [
+        { "id": "di_bawah_10jt", "when": [{ "field": "amount", "op": "lt", "value": 10000000 }], "approver": { "kind": "none" } },
+        { "id": "10jt_ke_atas", "when": [], "approver": { "kind": "role", "role": "finance_manager" } }
+      ]
+    },
+    {
+      "id": "approver_kategori", "name": "Approver teknis berdasarkan kategori",
+      "rows": [
+        { "id": "it", "when": [{ "field": "category", "op": "eq", "value": "it" }], "approver": { "kind": "role", "role": "it_manager" } },
+        { "id": "mesin", "when": [{ "field": "category", "op": "in", "value": ["mesin", "sparepart"] }], "approver": { "kind": "role", "role": "plant_manager" } },
+        { "id": "lainnya", "when": [], "approver": { "kind": "none" } }
+      ]
+    }
+  ],
+  "steps": [
+    { "type": "approval", "id": "atasan", "name": "Atasan langsung", "approver": { "kind": "manager", "level": 1 }, "slaHours": 24 },
+    {
+      "type": "parallel", "id": "keuangan_dan_teknis", "name": "Keuangan dan teknis",
+      "branches": [
+        [{ "type": "approval", "id": "keuangan", "name": "Keuangan", "approver": { "kind": "table", "tableId": "approver_keuangan" }, "slaHours": 48 }],
+        [{ "type": "approval", "id": "teknis", "name": "Teknis", "approver": { "kind": "table", "tableId": "approver_kategori" }, "slaHours": 48 }]
+      ]
+    },
+    {
+      "type": "condition", "id": "nominal_besar", "name": "Rp100 juta ke atas?",
+      "branches": [
+        {
+          "when": [{ "field": "amount", "op": "gte", "value": 100000000 }],
+          "steps": [
+            { "type": "approval", "id": "direktur", "name": "Direktur", "approver": { "kind": "role", "role": "director" }, "slaHours": 72 }
+          ]
+        }
+      ],
+      "otherwise": []
+    },
+    { "type": "notify", "id": "info_purchasing", "name": "Info ke Purchasing", "to": { "kind": "role", "role": "purchasing" }, "message": "Permintaan pembelian disetujui." }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "key": "leave",
+  "name": "Cuti / Izin",
+  "fields": [
+    { "key": "leave_type", "label": "Jenis", "type": "string" },
+    { "key": "start_date", "label": "Mulai", "type": "date" },
+    { "key": "end_date", "label": "Selesai", "type": "date" },
+    { "key": "days", "label": "Jumlah hari kerja", "type": "number" },
+    { "key": "reason", "label": "Alasan", "type": "string", "optional": true }
+  ],
+  "tables": [],
+  "steps": [
+    { "type": "approval", "id": "atasan", "name": "Atasan langsung", "approver": { "kind": "manager", "level": 1 }, "slaHours": 24 },
+    {
+      "type": "condition", "id": "cuti_panjang", "name": "Lebih dari 5 hari?",
+      "branches": [
+        {
+          "when": [{ "field": "days", "op": "gt", "value": 5 }],
+          "steps": [
+            { "type": "approval", "id": "atasan_2", "name": "Atasan dari atasan", "approver": { "kind": "manager", "level": 2 }, "slaHours": 48 }
+          ]
+        }
+      ],
+      "otherwise": []
+    },
+    { "type": "notify", "id": "info_hr", "name": "Info ke HR", "to": { "kind": "role", "role": "hr" }, "message": "Cuti disetujui, mohon dicatat." }
+  ]
+}
