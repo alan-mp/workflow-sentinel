@@ -8,7 +8,10 @@ export interface Me {
   id: string;
   name: string;
   email: string;
+  /** Admin sistem (IT). */
   isAdmin: boolean;
+  /** Alur yang dimiliki sebagai pemilik proses. */
+  ownedFlows: string[];
 }
 
 const useHash = () => {
@@ -37,12 +40,13 @@ export function App() {
   if (!me) return <Login onDone={load} />;
 
   const [, page, a, b] = hash.split('/');
+  const manages = me.isAdmin || me.ownedFlows.length > 0;
   const tabs = [
     ['inbox', 'Kotak masuk'],
     ['requests', 'Permintaan'],
     ['delegations', 'Delegasi'],
     ['notifications', `Notifikasi${unread ? ` (${unread})` : ''}`],
-    ...(me.isAdmin ? [['admin', 'Alur']] : []),
+    ...(manages ? [['admin', 'Alur']] : []),
   ] as const;
   const logout = async () => {
     await api('POST', '/logout');
@@ -56,8 +60,8 @@ export function App() {
   else if (page === 'r' && a) body = <RequestDetail id={a} key={a} />;
   else if (page === 'delegations') body = <Delegations me={me} />;
   else if (page === 'notifications') body = <Notifications />;
-  else if (page === 'admin' && a === 'v' && b && me.isAdmin) return <Editor id={b} key={b} me={me} />;
-  else if (page === 'admin' && me.isAdmin) body = <Flows me={me} />;
+  else if (page === 'admin' && a === 'v' && b && manages) return <Editor id={b} key={b} me={me} />;
+  else if (page === 'admin' && manages) body = <Flows me={me} />;
   else body = <Inbox />;
 
   return (

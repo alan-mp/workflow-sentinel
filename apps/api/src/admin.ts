@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import {
   FlowDefinitionSchema,
   InMemoryDirectory,
@@ -10,9 +10,9 @@ import {
   type FlowDefinition,
 } from '@sentinel/engine';
 import { drafterFromEnv } from './ai';
-import type { AppEnv, Deps } from './env';
+import type { AppEnv, Deps, SessionUser } from './env';
 import { hashPassword, randomToken } from './security';
-import { auditStatement, getVersion, notificationStatement, rowToUser, rowToVersion, type Citation } from './store';
+import { auditStatement, getVersion, notificationStatement, rowToUser, rowToVersion, type Citation, type StoredVersion } from './store';
 
 type Row = Record<string, unknown>;
 
@@ -26,17 +26,38 @@ const BLANK = (key: string, name: string): FlowDefinition => ({
 
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase();
 
+/**
+ * Dua peran yang sengaja dipisah:
+ * - Pemilik proses: menyusun dan mengaktifkan alur miliknya saja.
+ * - Admin sistem (IT): menunjuk pemilik dan mengimpor direktori, tetapi tidak
+ *   bisa mengubah atau mengaktifkan alur, dan tidak bisa menjadi pemilik.
+ */
+export async function ownedFlows(db: D1Database, user: SessionUser): Promise<string[]> {
+  if (user.isAdmin) return [];
+  const { results } = await db.prepare('SELECT flow_key FROM flow_owners WHERE user_id = ? ORDER BY 1').bind(user.id).all<Row>();
+  return results.map((r) => r.flow_key as string);
+}
+const owns = async (db: D1Database, user: SessionUser, flowKey: string) => (await ownedFlows(db, user)).includes(flowKey);
+const NOT_OWNER = { error: 'Hanya pemilik proses alur ini yang boleh melakukannya' };
+
 export function adminRoutes(deps: Deps) {
   const app = new Hono<AppEnv>();
 
   app.use('*', async (c, next) => {
-    if (!c.var.user.isAdmin) return c.json({ error: 'Khusus admin' }, 403);
+    if (!c.var.user.isAdmin && (await ownedFlows(c.env.DB, c.var.user)).length === 0) {
+      return c.json({ error: 'Khusus pemilik proses dan admin sistem' }, 403);
+    }
     await next();
   });
+  const sysadminOnly = (c: Context<AppEnv>) => (c.var.user.isAdmin ? null : c.json({ error: 'Khusus admin sistem' }, 403));
 
-  const draftOr404 = async (db: D1Database, id: string) => {
-    const v = await getVersion(db, id);
-    return v && v.status === 'draft' ? v : null;
+  const ownedDraft = async (
+    c: Context<AppEnv>,
+  ): Promise<{ draft: StoredVersion; error?: undefined } | { draft?: undefined; error: Response }> => {
+    const v = await getVersion(c.env.DB, c.req.param('id')!);
+    if (!v || v.status !== 'draft') return { error: c.json({ error: 'Draf tidak ditemukan' }, 404) };
+    if (!(await owns(c.env.DB, c.var.user, v.flowKey))) return { error: c.json(NOT_OWNER, 403) };
+    return { draft: v };
   };
   const event = (userId: string, versionId: string, action: string, detail?: Record<string, unknown>): AuditEvent => ({
     at: new Date().toISOString(),
@@ -46,13 +67,58 @@ export function adminRoutes(deps: Deps) {
     detail,
   });
 
-  app.get('/versions', async (c) => {
-    const { results } = await c.env.DB.prepare(
-      `SELECT v.id, v.flow_key, v.version, v.status, v.sop_url, v.effective_from, v.created_at, v.edited_by,
-              json_extract(v.definition, '$.name') AS name, a.name AS activated_by_name
-       FROM flow_versions v LEFT JOIN users a ON a.id = v.activated_by ORDER BY v.flow_key, v.version DESC`,
-    ).all<Row>();
-    return c.json(results.map((r) => ({ ...r, edited_by: JSON.parse(r.edited_by as string) })));
+  // Pemilik melihat alur miliknya; admin sistem melihat semua alur (hanya baca).
+  app.get('/flows', async (c) => {
+    const mine = await ownedFlows(c.env.DB, c.var.user);
+    const [versions, owners] = await Promise.all([
+      c.env.DB.prepare(
+        `SELECT v.id, v.flow_key, v.version, v.status, v.effective_from, v.edited_by,
+                json_extract(v.definition, '$.name') AS name, a.name AS activated_by_name
+         FROM flow_versions v LEFT JOIN users a ON a.id = v.activated_by ORDER BY v.flow_key, v.version DESC`,
+      ).all<Row>(),
+      c.env.DB.prepare('SELECT o.flow_key, u.id, u.name FROM flow_owners o JOIN users u ON u.id = o.user_id ORDER BY u.name').all<Row>(),
+    ]);
+    const keys = [...new Set([...versions.results, ...owners.results].map((r) => r.flow_key as string))].sort();
+    return c.json(
+      keys
+        .filter((key) => c.var.user.isAdmin || mine.includes(key))
+        .map((key) => {
+          const list = versions.results.filter((v) => v.flow_key === key);
+          return {
+            key,
+            name: (list[0]?.name as string | undefined) ?? key,
+            canEdit: mine.includes(key),
+            owners: owners.results.filter((o) => o.flow_key === key).map((o) => ({ id: o.id, name: o.name })),
+            versions: list.map((v) => ({ ...v, edited_by: JSON.parse(v.edited_by as string) })),
+          };
+        }),
+    );
+  });
+
+  // Menetapkan daftar pemilik sebuah alur (juga cara mendaftarkan alur baru).
+  app.put('/flows/:key/owners', async (c) => {
+    const denied = sysadminOnly(c);
+    if (denied) return denied;
+    const key = c.req.param('key');
+    const { userIds } = await c.req.json<{ userIds: string[] }>();
+    if (!/^[a-z0-9_]+$/.test(key)) return c.json({ error: 'Kunci alur: huruf kecil, angka, dan _' }, 400);
+    const ids = [...new Set(Array.isArray(userIds) ? userIds : [])];
+    if (ids.length < 2) return c.json({ error: 'Tiap alur butuh minimal dua pemilik, supaya ada orang kedua yang mengaktifkan' }, 400);
+    for (const id of ids) {
+      const u = await c.env.DB.prepare('SELECT is_admin FROM users WHERE id = ?').bind(id).first<Row>();
+      if (!u) return c.json({ error: `User ${id} tidak ditemukan` }, 400);
+      if (u.is_admin === 1) return c.json({ error: 'Admin sistem tidak boleh menjadi pemilik proses' }, 400);
+    }
+    const now = new Date().toISOString();
+    await c.env.DB.batch([
+      c.env.DB.prepare('DELETE FROM flow_owners WHERE flow_key = ?').bind(key),
+      ...ids.map((id) =>
+        c.env.DB.prepare('INSERT INTO flow_owners (flow_key, user_id, assigned_by, assigned_at) VALUES (?, ?, ?, ?)').bind(key, id, c.var.user.id, now),
+      ),
+      // Bukan perubahan versi, jadi kolom versi diisi penanda alurnya.
+      auditStatement(c.env.DB, event(c.var.user.id, `flow:${key}`, 'owners_assigned', { owners: ids })),
+    ]);
+    return c.json({ owners: ids });
   });
 
   app.get('/users', async (c) => {
@@ -63,6 +129,7 @@ export function adminRoutes(deps: Deps) {
   app.post('/drafts', async (c) => {
     const body = await c.req.json<{ flowKey: string; name?: string }>();
     if (!/^[a-z0-9_]+$/.test(body.flowKey ?? '')) return c.json({ error: 'Kunci alur: huruf kecil, angka, dan _' }, 400);
+    if (!(await owns(c.env.DB, c.var.user, body.flowKey))) return c.json(NOT_OWNER, 403);
     const latest = await c.env.DB.prepare('SELECT * FROM flow_versions WHERE flow_key = ? ORDER BY version DESC LIMIT 1')
       .bind(body.flowKey)
       .first<Row>();
@@ -93,6 +160,8 @@ export function adminRoutes(deps: Deps) {
   app.get('/versions/:id', async (c) => {
     const v = await getVersion(c.env.DB, c.req.param('id'));
     if (!v) return c.json({ error: 'Versi tidak ditemukan' }, 404);
+    const canEdit = await owns(c.env.DB, c.var.user, v.flowKey);
+    if (!canEdit && !c.var.user.isAdmin) return c.json({ error: 'Versi tidak ditemukan' }, 404);
     const [chat, sop, roles] = await Promise.all([
       c.env.DB.prepare('SELECT role, content, created_at FROM chat_messages WHERE flow_version_id = ? ORDER BY id').bind(v.id).all(),
       v.sopDocumentId
@@ -106,13 +175,14 @@ export function adminRoutes(deps: Deps) {
       chat: chat.results,
       sop,
       roles: roles.results.map((r) => r.role),
-      canActivate: v.status === 'draft' && !v.editedBy.includes(c.var.user.id),
+      canEdit,
+      canActivate: canEdit && v.status === 'draft' && !v.editedBy.includes(c.var.user.id),
     });
   });
 
   app.put('/drafts/:id', async (c) => {
-    const draft = await draftOr404(c.env.DB, c.req.param('id'));
-    if (!draft) return c.json({ error: 'Draf tidak ditemukan' }, 404);
+    const { draft, error } = await ownedDraft(c);
+    if (!draft) return error;
     const body = await c.req.json<{ definition: unknown; sopUrl?: string }>();
     const parsed = FlowDefinitionSchema.safeParse(body.definition);
     if (!parsed.success) {
@@ -143,8 +213,8 @@ export function adminRoutes(deps: Deps) {
   });
 
   app.post('/drafts/:id/sop', async (c) => {
-    const draft = await draftOr404(c.env.DB, c.req.param('id'));
-    if (!draft) return c.json({ error: 'Draf tidak ditemukan' }, 404);
+    const { draft, error } = await ownedDraft(c);
+    if (!draft) return error;
     const body = await c.req.json<{ name: string; content: string }>();
     if (!body.content?.trim()) return c.json({ error: 'Isi SOP kosong' }, 400);
     const sopId = randomToken(8);
@@ -175,8 +245,8 @@ export function adminRoutes(deps: Deps) {
   });
 
   app.post('/drafts/:id/chat', async (c) => {
-    const draft = await draftOr404(c.env.DB, c.req.param('id'));
-    if (!draft) return c.json({ error: 'Draf tidak ditemukan' }, 404);
+    const { draft, error } = await ownedDraft(c);
+    if (!draft) return error;
     const drafter = deps.drafter ?? drafterFromEnv(c.env);
     if (!drafter) return c.json({ error: 'AI belum dikonfigurasi (AI_GATEWAY_URL dan ANTHROPIC_API_KEY)' }, 503);
     const { message } = await c.req.json<{ message: string }>();
@@ -250,13 +320,17 @@ export function adminRoutes(deps: Deps) {
   });
 
   app.post('/drafts/:id/submit', async (c) => {
-    const draft = await draftOr404(c.env.DB, c.req.param('id'));
-    if (!draft) return c.json({ error: 'Draf tidak ditemukan' }, 404);
+    const { draft, error } = await ownedDraft(c);
+    if (!draft) return error;
     const checked = validateDefinition(draft.definition);
     if (!checked.ok) return c.json({ error: 'Draf masih punya masalah', issues: checked.issues }, 400);
-    const { results } = await c.env.DB.prepare('SELECT id FROM users WHERE is_admin = 1').all<Row>();
+    const { results } = await c.env.DB.prepare(
+      'SELECT o.user_id AS id FROM flow_owners o JOIN users u ON u.id = o.user_id WHERE o.flow_key = ? AND u.is_admin = 0',
+    )
+      .bind(draft.flowKey)
+      .all<Row>();
     const reviewers = results.map((r) => r.id as string).filter((id) => !draft.editedBy.includes(id));
-    if (reviewers.length === 0) return c.json({ error: 'Tidak ada admin lain yang bisa meninjau draf ini' }, 400);
+    if (reviewers.length === 0) return c.json({ error: 'Tidak ada pemilik proses lain di alur ini yang bisa meninjau draf' }, 400);
     const now = new Date().toISOString();
     await c.env.DB.batch([
       auditStatement(c.env.DB, event(c.var.user.id, draft.id, 'version_submitted', { reviewers })),
@@ -272,8 +346,8 @@ export function adminRoutes(deps: Deps) {
   });
 
   app.post('/drafts/:id/activate', async (c) => {
-    const draft = await draftOr404(c.env.DB, c.req.param('id'));
-    if (!draft) return c.json({ error: 'Draf tidak ditemukan' }, 404);
+    const { draft, error } = await ownedDraft(c);
+    if (!draft) return error;
     const body = await c.req.json<{ effectiveFrom: string }>();
     const effective = new Date(body.effectiveFrom);
     if (Number.isNaN(effective.getTime())) return c.json({ error: 'Tanggal berlaku tidak valid' }, 400);
@@ -293,6 +367,8 @@ export function adminRoutes(deps: Deps) {
   });
 
   app.get('/audit', async (c) => {
+    const denied = sysadminOnly(c);
+    if (denied) return denied;
     const { results } = await c.env.DB.prepare(
       `SELECT e.seq, e.at, e.actor_type, e.actor_id, e.action, e.flow_version_id, e.detail FROM audit_events e
        WHERE e.request_id IS NULL ORDER BY e.seq DESC LIMIT 100`,
@@ -302,6 +378,8 @@ export function adminRoutes(deps: Deps) {
 
   // Impor direktori dari CSV: id,email,name,department,manager_id,roles,is_admin (roles dipisah "|").
   app.post('/directory', async (c) => {
+    const denied = sysadminOnly(c);
+    if (denied) return denied;
     const lines = (await c.req.text()).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     const header = lines.shift()?.split(',').map((h) => h.trim());
     const need = ['id', 'email', 'name', 'department'];

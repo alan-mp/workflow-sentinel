@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { EngineError } from '@sentinel/engine';
 import { LogEmailNotifier, MockErpAdapter } from './adapters';
-import { adminRoutes } from './admin';
+import { adminRoutes, ownedFlows } from './admin';
 import type { AppEnv, Deps, Env } from './env';
 import { requestRoutes, runSla } from './requests';
 import { randomToken, verifyPassword } from './security';
@@ -81,7 +81,7 @@ export function createApp(overrides: Partial<Deps> = {}) {
     await next();
   });
 
-  app.get('/me', (c) => c.json(c.var.user));
+  app.get('/me', async (c) => c.json({ ...c.var.user, ownedFlows: await ownedFlows(c.env.DB, c.var.user) }));
   app.route('/', requestRoutes(deps));
   app.route('/admin', adminRoutes(deps));
   return { app, deps };

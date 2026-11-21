@@ -7,7 +7,14 @@ const read = (name: string) =>
 const q = (v: unknown) => (v === null || v === undefined ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`);
 
 export const DEMO_PASSWORD = 'demo1234';
-const ADMINS = ['u_hana', 'u_dewi', 'u_irfan'];
+/** Admin sistem (IT). */
+const ADMINS = ['u_hadi'];
+/** Pemilik proses per alur. */
+const OWNERS: Record<string, string[]> = {
+  leave: ['u_hana', 'u_dewi'],
+  it_access: ['u_irfan', 'u_sari'],
+  purchase: ['u_hana', 'u_dewi'],
+};
 
 export async function seedSql(): Promise<string> {
   const hash = await hashPassword(DEMO_PASSWORD);
@@ -21,6 +28,9 @@ export async function seedSql(): Promise<string> {
   const at = '2026-01-01T00:00:00.000Z';
   for (const key of ['leave', 'it_access', 'purchase']) {
     const id = `${key}-v1`;
+    for (const owner of OWNERS[key]!) {
+      out.push(`INSERT INTO flow_owners (flow_key, user_id, assigned_by, assigned_at) VALUES (${q(key)}, ${q(owner)}, 'u_hadi', ${q(at)});`);
+    }
     out.push(
       `INSERT INTO flow_versions (id, flow_key, version, status, definition, sop_url, citations, created_by, edited_by, effective_from, activated_by, activated_at, created_at) VALUES (${q(id)}, ${q(key)}, 1, 'active', ${q(JSON.stringify(read(key)))}, 'https://contoh.test/sop-${key}', '[]', 'u_hana', '["u_hana"]', ${q(at)}, 'u_dewi', ${q(at)}, ${q(at)});`,
       `INSERT INTO audit_events (at, actor_type, actor_id, action, flow_version_id, detail) VALUES (${q(at)}, 'user', 'u_dewi', 'version_activated', ${q(id)}, '{"seed":true}');`,

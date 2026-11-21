@@ -12,14 +12,16 @@ Aplikasi approval workflow internal: cuti/izin, akses IT, dan permintaan pembeli
 
 ```bash
 npm install
-npm test            # 69 test
+npm test
 npm run db:setup    # buat database lokal + data contoh
 npm run dev         # http://localhost:8787
 ```
 
 Akun contoh (password `demo1234`): `budi@contoh.test` (pemohon), `maya@contoh.test` (atasan),
-`fajar@contoh.test` (finance), `irfan@contoh.test` (IT, admin), `hana@contoh.test` (HR, admin),
-`dewi@contoh.test` (direktur, admin).
+`fajar@contoh.test` (finance), `hana@contoh.test` dan `dewi@contoh.test` (pemilik proses cuti dan pembelian),
+`irfan@contoh.test` dan `sari@contoh.test` (pemilik proses akses IT), `hadi@contoh.test` (admin sistem).
+
+Pemilik proses menyusun dan mengaktifkan alur miliknya; admin sistem hanya menunjuk pemilik dan mengimpor direktori.
 
 Chat AI butuh file `apps/api/.dev.vars`:
 

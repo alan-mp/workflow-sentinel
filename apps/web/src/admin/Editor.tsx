@@ -33,7 +33,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
   const errors = issues.filter((i) => i.level === 'error');
   if (!version || !def) return <p className="content error">{message}</p>;
 
-  const readOnly = version.status !== 'draft';
+  const readOnly = version.status !== 'draft' || !version.canEdit;
   const change = (next: FlowDefinition) => {
     setDef(next);
     setDirty(true);
@@ -65,7 +65,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
         </span>
         <span className="grow" />
         {readOnly ? (
-          <span className="muted">Berlaku sejak {fmtTime(version.effectiveFrom)}</span>
+          <span className="muted">{version.status === 'draft' ? 'Hanya baca' : `Berlaku sejak ${fmtTime(version.effectiveFrom)}`}</span>
         ) : (
           <>
             <button disabled={!dirty} onClick={() => run(save, 'Draf tersimpan.')}>
@@ -86,8 +86,8 @@ export function Editor({ id, me }: { id: string; me: Me }) {
               <button
                 className="primary"
                 disabled={errors.length > 0}
-                title="Anda penyusun draf ini, jadi pengaktifan harus oleh admin lain"
-                onClick={() => run(async () => { await save(); await api('POST', `/admin/drafts/${id}/submit`); }, 'Diajukan ke admin lain untuk ditinjau.')}
+                title="Anda ikut menyusun draf ini, jadi pengaktifan harus oleh pemilik proses lain"
+                onClick={() => run(async () => { await save(); await api('POST', `/admin/drafts/${id}/submit`); }, 'Diajukan ke pemilik proses lain untuk ditinjau.')}
               >
                 Ajukan untuk ditinjau
               </button>
@@ -175,7 +175,7 @@ export function Editor({ id, me }: { id: string; me: Me }) {
                 </p>
               ))}
               <p className="muted small">
-                Disusun oleh: {version.editedBy.join(', ')}. {version.canActivate ? 'Anda bisa mengaktifkan draf ini.' : readOnly ? '' : `Anda (${me.id}) ikut menyusun, jadi pengaktifan harus oleh admin lain.`}
+                Disusun oleh: {version.editedBy.join(', ')}. {version.canActivate ? 'Anda bisa mengaktifkan draf ini.' : readOnly ? '' : `Anda (${me.id}) ikut menyusun, jadi pengaktifan harus oleh pemilik proses lain di alur ini.`}
               </p>
               <h4>Bidang isian permintaan</h4>
               <ul className="small">

@@ -175,6 +175,8 @@ describe('delegasi', () => {
   it('atasan langsung bisa mendelegasikan atas nama bawahan yang berhalangan; orang lain tidak', async () => {
     const now = Date.now();
     const body = { fromUserId: 'u_maya', toUserId: 'u_irfan', startsAt: new Date(now - 60_000).toISOString(), endsAt: new Date(now + 3_600_000).toISOString() };
+    expect((await t.call('maya', 'GET', '/reports')).body.map((u: any) => u.id)).toContain('u_budi');
+    expect((await t.call('putra', 'GET', '/reports')).body.map((u: any) => u.id)).toEqual(['u_maya']);
     expect((await t.call('budi', 'POST', '/delegations', body)).status).toBe(403);
     expect((await t.call('hana', 'POST', '/delegations', body)).status).toBe(403);
     const made = await t.call('putra', 'POST', '/delegations', body);
@@ -221,8 +223,34 @@ describe('SLA', () => {
 describe('membuat dan mengaktifkan alur', () => {
   let draftId: string;
 
-  it('hanya admin yang bisa membuka area admin', async () => {
-    expect((await t.call('budi', 'GET', '/admin/versions')).status).toBe(403);
+  it('karyawan biasa tidak bisa membuka area pengelolaan alur', async () => {
+    expect((await t.call('budi', 'GET', '/admin/flows')).status).toBe(403);
+  });
+
+  it('pemilik proses hanya melihat dan mengubah alur miliknya', async () => {
+    const irfan = (await t.call('irfan', 'GET', '/admin/flows')).body;
+    expect(irfan.map((f: any) => f.key)).toEqual(['it_access']);
+    expect((await t.call('irfan', 'POST', '/admin/drafts', { flowKey: 'purchase' })).status).toBe(403);
+    expect((await t.call('irfan', 'GET', '/admin/versions/purchase-v1')).status).toBe(404);
+  });
+
+  it('admin sistem melihat semua alur tetapi tidak bisa menyusun atau mengaktifkan', async () => {
+    const all = (await t.call('hadi', 'GET', '/admin/flows')).body;
+    expect(all.map((f: any) => [f.key, f.canEdit])).toEqual([['it_access', false], ['leave', false], ['purchase', false]]);
+    expect((await t.call('hadi', 'POST', '/admin/drafts', { flowKey: 'purchase' })).status).toBe(403);
+  });
+
+  it('admin sistem menunjuk pemilik: minimal dua, bukan dirinya, dan hanya dia yang boleh', async () => {
+    const put = (who: string, userIds: string[]) => t.call(who, 'PUT', '/admin/flows/reimburse/owners', { userIds });
+    expect((await put('hana', ['u_hana', 'u_fajar'])).status).toBe(403);
+    expect((await put('hadi', ['u_fajar'])).status).toBe(400);
+    expect((await put('hadi', ['u_fajar', 'u_hadi'])).status).toBe(400);
+    expect((await put('hadi', ['u_fajar', 'u_pandu'])).status).toBe(200);
+    expect((await t.call('fajar', 'GET', '/me')).body.ownedFlows).toEqual(['reimburse']);
+    const made = await t.call('fajar', 'POST', '/admin/drafts', { flowKey: 'reimburse', name: 'Reimburse' });
+    expect(made.status).toBe(201);
+    const audit = await t.env.DB.prepare("SELECT actor_id, detail FROM audit_events WHERE action = 'owners_assigned'").first<any>();
+    expect(audit).toMatchObject({ actor_id: 'u_hadi' });
   });
 
   it('admin membuat draf dari versi aktif dan mengunggah SOP', async () => {
@@ -298,6 +326,9 @@ describe('membuat dan mengaktifkan alur', () => {
     await t.call('hana', 'POST', `/admin/drafts/${draftId}/submit`);
     expect((await t.call('dewi', 'GET', '/notifications')).body.map((n: any) => n.message).join('\n')).toMatch(/menunggu tinjauan/);
 
+    const body = { effectiveFrom: new Date().toISOString() };
+    expect((await t.call('irfan', 'POST', `/admin/drafts/${draftId}/activate`, body)).status).toBe(403);
+    expect((await t.call('hadi', 'POST', `/admin/drafts/${draftId}/activate`, body)).status).toBe(403);
     const res = await t.call('dewi', 'POST', `/admin/drafts/${draftId}/activate`, { effectiveFrom: new Date(Date.now() - 1000).toISOString() });
     expect(res.status).toBe(200);
     expect((await t.call('hana', 'PUT', `/admin/drafts/${draftId}`, { definition: {} })).status).toBe(404);
@@ -312,7 +343,8 @@ describe('membuat dan mengaktifkan alur', () => {
 describe('direktori dari CSV', () => {
   it('impor menambah karyawan baru dengan password sementara dan memperbarui atasan', async () => {
     const csv = 'id,email,name,department,manager_id,roles,is_admin\nu_rina,rina@contoh.test,Rina,produksi,u_maya,,0\nu_budi,budi@contoh.test,Budi (Operator Produksi),produksi,u_putra,,0';
-    const res = await t.call('hana', 'POST', '/admin/directory', csv);
+    expect((await t.call('hana', 'POST', '/admin/directory', csv)).status).toBe(403);
+    const res = await t.call('hadi', 'POST', '/admin/directory', csv);
     expect(res.body).toMatchObject({ imported: 2 });
     expect(res.body.created).toHaveLength(1);
     const login = await t.call(null, 'POST', '/login', { email: 'rina@contoh.test', password: res.body.created[0].temporaryPassword });

@@ -15,6 +15,7 @@ export interface SessionUser {
   email: string;
   name: string;
   department: string;
+  /** Admin sistem (IT). Pemilik proses dicatat per alur di tabel flow_owners. */
   isAdmin: boolean;
 }
 
