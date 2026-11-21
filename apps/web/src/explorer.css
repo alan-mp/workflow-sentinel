@@ -1,0 +1,4 @@
+body { margin: 0; background: #fff; }
+.swagger-ui .topbar { display: none; }
+.swagger-ui .info { margin: 24px 0 12px; }
+.swagger-ui .scheme-container { box-shadow: none; padding: 12px 0; }

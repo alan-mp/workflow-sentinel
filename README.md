@@ -127,6 +127,13 @@ When the request is approved, rejected, or cancelled, Sentinel POSTs the outcome
 registered webhook, signed with `X-Sentinel-Signature`. The payload and the signature check are described in
 [docs/spec.md](docs/spec.md).
 
+The API is described in OpenAPI at `/api/integrations/openapi.json` and can be tried in the **API explorer** under
+Integrations (Swagger UI, bundled with the app). The test environment also serves `/demo-hr.html`, an HR application
+simulation that files requests through the API and shows the webhooks it receives, with their signatures checked.
+
+To reset the test environment to an empty database with the 25-person demo organization:
+`npx tsx apps/api/scripts/seed.ts demo` produces the seed SQL (see the comment at the top of `scripts/seed.ts`).
+
 ### MCP
 Connect an MCP client to `https://<host>/mcp`. From Claude Code:
 

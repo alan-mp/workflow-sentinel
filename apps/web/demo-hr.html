@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HR application (simulation)</title>
+    <meta name="robots" content="noindex" />
+  </head>
+  <body>
+    <header class="bar">
+      <strong>HR application</strong>
+      <span class="sim">Simulation of another internal system · uses Sentinel only through its public API</span>
+    </header>
+    <main>
+      <section class="card" id="connect">
+        <h2>1. Connection to Sentinel</h2>
+        <p class="hint">Paste the API key and signing secret that a Sentinel administrator created under Integrations. They stay in this browser tab only.</p>
+        <label>API key <input id="key" type="password" autocomplete="off" placeholder="sk_sentinel_…" /></label>
+        <label>Webhook signing secret <input id="secret" type="password" autocomplete="off" placeholder="whsec_…" /></label>
+        <button id="load">Connect and load flows</button>
+        <p id="connect-status" class="status"></p>
+      </section>
+
+      <section class="card" id="file">
+        <h2>2. File a request in Sentinel</h2>
+        <label>Flow <select id="flow"></select></label>
+        <label>Employee email <input id="email" value="budi@contoh.test" /></label>
+        <div id="fields"></div>
+        <label>Our reference (externalRef) <input id="ref" /></label>
+        <div class="row">
+          <button id="submit">Send to Sentinel</button>
+          <button id="resend" class="ghost" disabled>Send the same request again</button>
+        </div>
+        <pre id="exchange" class="log"></pre>
+      </section>
+
+      <section class="card" id="inbox">
+        <h2>3. Webhooks received from Sentinel</h2>
+        <div class="row">
+          <span id="receiver-state" class="pill"></span>
+          <button id="toggle" class="ghost">Take receiver offline</button>
+        </div>
+        <table>
+          <thead><tr><th>Received</th><th>Event</th><th>Request</th><th>Our reference</th><th>Signature</th></tr></thead>
+          <tbody id="received"><tr><td colspan="5" class="hint">Nothing received yet.</td></tr></tbody>
+        </table>
+      </section>
+    </main>
+    <script type="module" src="/src/demo-hr.ts"></script>
+  </body>
+</html>

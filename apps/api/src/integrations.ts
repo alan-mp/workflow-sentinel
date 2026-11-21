@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { OPENAPI } from './openapi';
 import { startRequest, type RequestState } from '@sentinel/engine';
 import type { AppEnv, Deps } from './env';
 import { logError } from './log';
@@ -61,6 +62,9 @@ const waitingOn = (state: RequestState) => state.tasks.filter((t) => t.status ==
 /** Routes for other systems. Authenticated by API key, not by a user session. */
 export function integrationApiRoutes(deps: Deps) {
   const app = new Hono<{ Bindings: AppEnv['Bindings']; Variables: { client: Client } }>();
+
+  // The API description is public: it holds no data, and integrators read it before they have a key.
+  app.get('/openapi.json', (c) => c.json(OPENAPI));
 
   app.use('*', async (c, next) => {
     const client = await clientFromKey(c.env.DB, c.req.header('authorization'));
@@ -292,6 +296,7 @@ export function integrationAdminRoutes(deps: Deps) {
     const clients = await c.env.DB.prepare('SELECT id, name, key_prefix, callback_hosts, created_at, revoked_at FROM api_clients ORDER BY created_at DESC').all<Row>();
     const hooks = await c.env.DB.prepare('SELECT id, flow_key, url, created_at FROM webhooks WHERE deleted_at IS NULL ORDER BY created_at DESC').all<Row>();
     return c.json({
+      demoApps: c.env.DEMO_APPS === 'on',
       clients: clients.results.map((r) => ({ id: r.id, name: r.name, keyPrefix: r.key_prefix, callbackHosts: JSON.parse(r.callback_hosts as string), createdAt: r.created_at, revokedAt: r.revoked_at })),
       webhooks: hooks.results.map((r) => ({ id: r.id, flowKey: r.flow_key, url: r.url, createdAt: r.created_at })),
     });

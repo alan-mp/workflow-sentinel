@@ -5,6 +5,7 @@ import { LogEmailNotifier, MockErpAdapter } from './adapters';
 import { adminRoutes, ownedFlows } from './admin';
 import { ChangeError, orgRoutes, ownsOrg } from './org';
 import type { AppEnv, Deps, SessionUser } from './env';
+import { demoRoutes } from './demo';
 import { integrationAdminRoutes, integrationApiRoutes } from './integrations';
 import { requestRoutes } from './requests';
 import { logError } from './log';
@@ -102,6 +103,8 @@ export function createApp(overrides: Partial<Deps> = {}) {
 
   // Other systems authenticate with an API key, so these routes sit before the session check.
   app.route('/integrations', integrationApiRoutes(deps));
+  // Simulated receiving system for demos; answers 404 unless DEMO_APPS is "on".
+  app.route('/demo', demoRoutes());
 
   app.use('*', async (c, next) => {
     // Panggilan dari server MCP membawa identitas pengguna lewat objek Request itu sendiri, bukan header.

@@ -1,0 +1,15 @@
+[
+  {"id": "direksi", "name": "Direksi", "level": "direksi", "headUserId": "u_dewi"},
+  {"id": "div_operasional", "name": "Divisi Operasional", "level": "divisi", "parentId": "direksi", "headUserId": "u_rudi"},
+  {"id": "produksi", "name": "Produksi", "level": "departemen", "parentId": "div_operasional", "headUserId": "u_putra"},
+  {"id": "produksi_line", "name": "Produksi Line", "level": "seksi", "parentId": "produksi", "headUserId": "u_maya"},
+  {"id": "maintenance", "name": "Maintenance", "level": "seksi", "parentId": "produksi"},
+  {"id": "ppic", "name": "PPIC", "level": "departemen", "parentId": "div_operasional", "headUserId": "u_lina"},
+  {"id": "qa", "name": "QA", "level": "departemen", "parentId": "div_operasional", "actingHeadUserId": "u_rina", "actingUntil": "2026-12-31T23:59:59.000Z"},
+  {"id": "div_keuangan_sdm", "name": "Divisi Keuangan & SDM", "level": "divisi", "parentId": "direksi", "headUserId": "u_bambang"},
+  {"id": "finance", "name": "Finance", "level": "departemen", "parentId": "div_keuangan_sdm", "headUserId": "u_fajar"},
+  {"id": "purchasing", "name": "Purchasing", "level": "unit", "parentId": "finance", "headUserId": "u_pandu"},
+  {"id": "hr", "name": "HR & GA", "level": "departemen", "parentId": "div_keuangan_sdm", "headUserId": "u_hana"},
+  {"id": "div_teknologi", "name": "Divisi Teknologi", "level": "divisi", "parentId": "direksi", "headUserId": "u_wahyu"},
+  {"id": "it", "name": "IT", "level": "departemen", "parentId": "div_teknologi", "headUserId": "u_irfan"}
+]

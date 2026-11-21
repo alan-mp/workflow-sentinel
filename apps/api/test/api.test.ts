@@ -704,3 +704,20 @@ describe('ringkasan AI dan tanda anomali', () => {
     expect((await t.call('budi', 'GET', `/requests/${id}`)).body.insight).toMatchObject({ status: 'ready' });
   });
 });
+
+describe('API explorer dan penerima simulasi', () => {
+  it('deskripsi OpenAPI terbuka tanpa kunci dan mencakup setiap rute integrasi', async () => {
+    const res = await t.request('/api/integrations/openapi.json', { method: 'GET' });
+    expect(res.status).toBe(200);
+    const spec: any = await res.json();
+    expect(Object.keys(spec.paths).sort()).toEqual(['/api/integrations/flows', '/api/integrations/requests', '/api/integrations/requests/{id}']);
+    expect(spec.webhooks['request.finished']).toBeTruthy();
+    // Rute lain tetap butuh kunci.
+    expect((await t.request('/api/integrations/flows', { method: 'GET' })).status).toBe(401);
+  });
+
+  it('penerima webhook simulasi tidak ada kecuali DEMO_APPS = on', async () => {
+    expect((await t.request('/api/demo/hr/received', { method: 'GET' })).status).toBe(404);
+    expect((await t.request('/api/demo/hr/webhook', { method: 'POST', body: '{}' })).status).toBe(404);
+  });
+});

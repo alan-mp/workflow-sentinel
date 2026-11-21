@@ -1,0 +1,30 @@
+/* Deliberately unlike Sentinel, so it reads as a different system in a demo. */
+:root { --ink: #1f2a24; --muted: #5d6b62; --line: #cfd8d2; --accent: #2f7a4f; --bg: #f3f6f4; --bad: #b42318; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: var(--bg); }
+.bar { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; padding: 0.9rem 1.25rem; background: var(--accent); color: #fff; }
+.bar strong { font-size: 1.1rem; }
+.sim { font-size: 0.85rem; opacity: 0.9; }
+main { max-width: 960px; margin: 0 auto; padding: 1.25rem 16px 3rem; display: grid; gap: 1rem; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem; display: grid; gap: 0.6rem; }
+h2 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+label { display: grid; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+input, select { font: inherit; color: var(--ink); padding: 0.45rem 0.55rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; min-width: 0; }
+input[type='checkbox'] { justify-self: start; }
+#fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.6rem; }
+.row { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+button { font: inherit; font-weight: 600; padding: 0.5rem 0.9rem; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+button.ghost { background: #fff; color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+.hint, .status { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.log { margin: 0; max-height: 280px; overflow: auto; background: #1f2a24; color: #d8efe0; padding: 0.75rem; border-radius: 6px; font-size: 0.8rem; white-space: pre-wrap; }
+.log:empty { display: none; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th, td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+td.ok { color: var(--accent); font-weight: 700; }
+td.bad { color: var(--bad); font-weight: 700; }
+td.event { font-family: ui-monospace, monospace; }
+.pill { font-size: 0.8rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; }
+.pill.ok { background: #dff1e6; color: var(--accent); }
+.pill.bad { background: #fde3e1; color: var(--bad); }

@@ -4,6 +4,8 @@ import { useLoad } from './pages';
 import { Badge, Empty, ErrorNote, Loading, PageHead } from './ui';
 
 interface Overview {
+  /** The test environment also serves a simulated HR application for demos. */
+  demoApps?: boolean;
   clients: { id: string; name: string; keyPrefix: string; callbackHosts: string[]; createdAt: string; revokedAt: string | null }[];
   webhooks: { id: string; flowKey: string | null; url: string; createdAt: string }[];
 }
@@ -101,6 +103,12 @@ export function Integrations() {
             I have saved them
           </button>
         </div>
+      ) : null}
+      {data?.demoApps ? (
+        <p className="demo-note">
+          Demo environment: <a href="/demo-hr.html" target="_blank" rel="noopener">open the HR application (simulation)</a>, a stand-in for another system that files
+          requests through the API and receives webhooks. Allow the host <span className="num">{location.host}</span> for its callbacks.
+        </p>
       ) : null}
       {!data && !loadError ? <Loading /> : null}
       {data ? (
@@ -270,6 +278,18 @@ export function Integrations() {
           </div>
         </div>
       ) : null}
+      <section className="explorer">
+        <div className="section-head">
+          <h2 className="section-title">API explorer</h2>
+          <a href="/api-explorer.html" target="_blank" rel="noopener">
+            Open in a new tab
+          </a>
+        </div>
+        <p className="field-hint">
+          The integration API as other systems see it. Use Authorize with an API key, then Try it out; calls are real and are recorded like any other request.
+        </p>
+        <iframe className="explorer-frame" src="/api-explorer.html" title="API explorer" />
+      </section>
     </div>
   );
 }

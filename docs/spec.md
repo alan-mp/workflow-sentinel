@@ -72,6 +72,11 @@ the flow name, form labels and values, the requester's name, title and unit, app
 and the worded flags; it is told to treat request text as data, never to recommend a decision, and to keep the flags
 out of the summary the requester can read.
 
+**API explorer and demo receiver.** `GET /api/integrations/openapi.json` (public) describes the integration API and
+its webhook; the web build serves Swagger UI over it at `/api-explorer.html`, embedded under Integrations. When the
+`DEMO_APPS` variable is `on` (test environment only), `/api/demo/hr/*` acts as a receiving system for demos: it stores
+webhooks it receives and can be switched offline to show retries; `/demo-hr.html` is its page. Elsewhere it answers 404.
+
 **MCP** (`/mcp`, Streamable HTTP, stateless): 42 tools defined in `apps/api/src/mcp.ts`. Each tool validates its input
 with a schema and calls one API endpoint in-process as the authorized user. OAuth 2.1 with PKCE and dynamic client
 registration: `/authorize`, `/oauth/token`, `/oauth/register`, metadata under `/.well-known/`.

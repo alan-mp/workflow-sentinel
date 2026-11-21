@@ -1,9 +1,12 @@
 // Menghasilkan SQL data contoh: npx tsx scripts/seed.ts > seed.sql
+// Organisasi demo yang lebih besar (25 orang, 4 tingkat, satu Plt, satu kepala kosong) untuk lingkungan test:
+// npx tsx scripts/seed.ts demo > seed.sql. Tes otomatis selalu memakai data contoh yang kecil.
 import { readFileSync } from 'node:fs';
 import { hashPassword } from '../src/security';
 
 const read = (name: string) =>
   JSON.parse(readFileSync(new URL(`../../../packages/engine/examples/${name}.json`, import.meta.url), 'utf8'));
+const readDemo = (name: string) => JSON.parse(readFileSync(new URL(`./demo/${name}.json`, import.meta.url), 'utf8'));
 const q = (v: unknown) => (v === null || v === undefined ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`);
 
 export const DEMO_PASSWORD = 'demo1234';
@@ -21,6 +24,7 @@ export const AUTHORITY_NAME: Record<string, string> = {
   hr: 'Persetujuan HR',
   plant_manager: 'Persetujuan teknis produksi',
   purchasing: 'Purchasing',
+  general_affairs: 'General Affairs',
 };
 /** Pemilik proses per alur. */
 const OWNERS: Record<string, string[]> = {
@@ -29,16 +33,17 @@ const OWNERS: Record<string, string[]> = {
   purchase: ['u_hana', 'u_dewi'],
 };
 
-export async function seedSql(): Promise<string> {
+export async function seedSql(dataset: 'sample' | 'demo' = 'sample'): Promise<string> {
   const hash = await hashPassword(DEMO_PASSWORD);
   const out: string[] = [];
-  for (const unit of read('org')) {
+  const people = dataset === 'demo' ? readDemo('directory') : read('directory');
+  for (const unit of dataset === 'demo' ? readDemo('org') : read('org')) {
     out.push(
-      `INSERT INTO org_units (id, name, level, parent_id, head_user_id) VALUES (${q(unit.id)}, ${q(unit.name)}, ${q(unit.level)}, ${q(unit.parentId)}, ${q(unit.headUserId)});`,
+      `INSERT INTO org_units (id, name, level, parent_id, head_user_id, acting_head_user_id, acting_until) VALUES (${q(unit.id)}, ${q(unit.name)}, ${q(unit.level)}, ${q(unit.parentId)}, ${q(unit.headUserId)}, ${q(unit.actingHeadUserId)}, ${q(unit.actingUntil)});`,
     );
   }
   const authorities = new Set<string>();
-  for (const u of read('directory')) {
+  for (const u of people) {
     const email = `${u.id.replace('u_', '')}@contoh.test`;
     const title = /\((.*)\)/.exec(u.name)?.[1];
     out.push(
@@ -67,4 +72,4 @@ export async function seedSql(): Promise<string> {
   return out.join('\n');
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) console.log(await seedSql());
+if (import.meta.url === `file://${process.argv[1]}`) console.log(await seedSql(process.argv[2] === 'demo' ? 'demo' : 'sample'));
