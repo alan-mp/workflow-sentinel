@@ -62,6 +62,8 @@ export function App() {
   const logout = async () => {
     await api('POST', '/logout');
     location.hash = '';
+    // Counts belong to the person signing out; never show them to the next person on this device.
+    setCounts({ inbox: 0, unread: 0 });
     setMe(null);
   };
 
