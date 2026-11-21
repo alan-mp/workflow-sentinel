@@ -44,10 +44,10 @@ function encode(raw: unknown, type: FieldType, where: string, code: 'INVALID_DAT
  * null kalau kosong. Engine dijalankan tanpa `allowUndefinedFacts`, sehingga
  * aturan yang merujuk field di luar daftar ini gagal dengan error.
  */
-export function buildFacts(fields: Field[], data: Record<string, unknown>, requester: User): Facts {
+export function buildFacts(fields: Field[], data: Record<string, unknown>, requester: User, about: Record<string, unknown> = {}): Facts {
   const types: Record<string, FieldType> = { ...BUILTIN_FIELDS };
   for (const f of fields) types[f.key] = f.type;
-  const source: Record<string, unknown> = { ...data, 'requester.department': requester.department };
+  const source: Record<string, unknown> = { ...data, ...about, 'requester.department': requester.department };
   const values: Record<string, FactValue> = {};
   for (const [key, type] of Object.entries(types)) {
     const raw = source[key];

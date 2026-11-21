@@ -1,4 +1,5 @@
 import { flattenSteps, type DirectApprover, type FlowDefinition } from './definition';
+import { requesterFacts } from './org';
 import { resolveApprovers, resolveDirect, validateData, walk } from './routing';
 import { buildFacts } from './rules';
 import { EngineError, type Directory, type User } from './types';
@@ -34,7 +35,7 @@ export async function simulate(
   const requester = await directory.getUser(input.requesterId);
   if (!requester) throw new EngineError('INVALID_DATA', `User ${input.requesterId} is not in the directory`);
   validateData(definition.fields, input.data);
-  const facts = buildFacts(definition.fields, input.data, requester);
+  const facts = buildFacts(definition.fields, input.data, requester, await requesterFacts(requester, directory, now));
   const out: SimulatedStep[] = [];
   const parallelStack: string[] = [];
   /** Simulasi menganggap setiap approver tunggal menyetujui, sehingga aturan "tidak mengulang orang" ikut teruji. */

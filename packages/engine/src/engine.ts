@@ -1,5 +1,5 @@
 import { flattenSteps } from './definition';
-import { superiorOf } from './org';
+import { requesterFacts, superiorOf } from './org';
 import { resolveApprovers, resolveDirect, validateData, walk } from './routing';
 import { buildFacts } from './rules';
 import { EngineError, type AuditEvent, type Delegation, type Directory, type User } from './types';
@@ -74,7 +74,7 @@ async function advance(state: RequestState, version: FlowVersion, ctx: EngineCon
   const at = ctx.now.toISOString();
   const base = { at, flowVersionId: version.id, requestId: state.id };
   const requester = await requireUser(ctx.directory, state.requesterId);
-  const facts = buildFacts(version.definition.fields, state.data, requester);
+  const facts = buildFacts(version.definition.fields, state.data, requester, await requesterFacts(requester, ctx.directory, ctx.now));
 
   const done = await walk(version.definition.steps, facts, {
     approval: async (step) => {
@@ -371,7 +371,7 @@ export async function rerouteOpenTasks(current: RequestState, version: FlowVersi
   const events: AuditEvent[] = [];
   if (state.status !== 'in_progress') return { state, events };
   const requester = await requireUser(ctx.directory, state.requesterId);
-  const facts = buildFacts(version.definition.fields, state.data, requester);
+  const facts = buildFacts(version.definition.fields, state.data, requester, await requesterFacts(requester, ctx.directory, ctx.now));
   const steps = flattenSteps(version.definition.steps);
   for (const task of state.tasks) {
     if (task.status !== 'open' || task.round !== state.round) continue;

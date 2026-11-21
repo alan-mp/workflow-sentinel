@@ -191,3 +191,13 @@ export function orgFindings(snapshot: DirectorySnapshot, now: Date, authorityIds
   }
   return out;
 }
+
+/**
+ * Facts about the requester's position for rule conditions, read from the organization tree:
+ * the level of the unit they head (permanent or acting), or null when they head none.
+ */
+export async function requesterFacts(requester: User, directory: Directory, now: Date): Promise<Record<string, unknown>> {
+  const unit = requester.unitId ? await directory.getUnit(requester.unitId) : undefined;
+  const heads = unit && effectiveHead(unit, now)?.userId === requester.id;
+  return { 'requester.head_of_level': heads ? unit.level : null };
+}

@@ -1,4 +1,4 @@
-import { UNIT_LEVEL_LABEL, flattenSteps, type Condition, type FlowDefinition, type Step, type UnitLevel } from '@sentinel/engine/model';
+import { BUILTIN_LABEL, UNIT_LEVEL_LABEL, flattenSteps, type Condition, type FlowDefinition, type Step, type UnitLevel } from '@sentinel/engine/model';
 
 /** Menunjuk satu urutan langkah: akar alur, atau salah satu cabang sebuah blok. */
 export interface SeqRef {
@@ -78,7 +78,7 @@ const OPS: Record<string, string> = { eq: '=', neq: '≠', gt: '>', gte: '≥', 
 /** Kondisi sebagai bagian terpisah (bidang, operator, nilai batas) untuk ditampilkan sebagai batas spesifikasi. */
 export function conditionParts(def: FlowDefinition, when: Condition[]): { label: string; op: string; value: string }[] {
   return when.map((c) => ({
-    label: c.field === 'requester.department' ? 'Requester department' : (def.fields.find((f) => f.key === c.field)?.label ?? c.field),
+    label: (BUILTIN_LABEL[c.field] ?? def.fields.find((f) => f.key === c.field)?.label ?? c.field),
     op: OPS[c.op] ?? c.op,
     value: Array.isArray(c.value) ? c.value.join(', ') : typeof c.value === 'number' ? c.value.toLocaleString('en-US') : String(c.value),
   }));
@@ -88,7 +88,7 @@ export function conditionText(def: FlowDefinition, when: Condition[]): string {
   if (when.length === 0) return 'otherwise';
   return when
     .map((c) => {
-      const label = c.field === 'requester.department' ? 'Requester department' : (def.fields.find((f) => f.key === c.field)?.label ?? c.field);
+      const label = (BUILTIN_LABEL[c.field] ?? def.fields.find((f) => f.key === c.field)?.label ?? c.field);
       const value = Array.isArray(c.value) ? c.value.join(', ') : typeof c.value === 'number' ? c.value.toLocaleString('en-US') : String(c.value);
       return `${label} ${OPS[c.op]} ${value}`;
     })

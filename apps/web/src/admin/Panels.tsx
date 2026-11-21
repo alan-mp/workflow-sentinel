@@ -97,6 +97,7 @@ export function ConditionsEditor(props: { value: Condition[]; onChange: (v: Cond
         <div key={i} className="inline">
           <select value={c.field} onChange={(e) => set(i, { field: e.target.value, value: '' })} disabled={props.disabled}>
             <option value="requester.department">Requester department</option>
+            <option value="requester.head_of_level">Requester heads a unit at level</option>
             {def.fields.map((f) => (
               <option key={f.key} value={f.key}>
                 {f.label}
