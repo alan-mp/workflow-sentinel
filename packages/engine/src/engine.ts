@@ -15,6 +15,8 @@ export interface Task {
   /** Terisi kalau keputusan diambil lewat delegasi. */
   onBehalfOf?: string;
   actedAt?: string;
+  remindedAt?: string;
+  escalatedAt?: string;
 }
 
 export interface RequestState {
@@ -293,5 +295,46 @@ export async function resubmit(
     },
   ];
   events.push(...(await advance(state, version, ctx)));
+  return { state, events };
+}
+
+/**
+ * Pengingat dan eskalasi SLA. Lewat tenggat: pengingat ke approver. Lewat dua
+ * kali durasi SLA: atasan para approver ikut menjadi approver (kecuali pemohon).
+ */
+export async function checkSla(current: RequestState, version: FlowVersion, ctx: EngineContext): Promise<Result> {
+  requireVersion(current, version);
+  const state = structuredClone(current);
+  const events: AuditEvent[] = [];
+  const at = ctx.now.toISOString();
+  if (state.status !== 'in_progress') return { state, events };
+  for (const task of state.tasks) {
+    if (task.status !== 'open' || !task.dueAt || at < task.dueAt) continue;
+    const base = {
+      at,
+      actor: { type: 'system' } as const,
+      flowVersionId: version.id,
+      requestId: state.id,
+      stepId: task.stepId,
+      taskId: task.id,
+    };
+    if (!task.remindedAt) {
+      task.remindedAt = at;
+      events.push({ ...base, action: 'sla_reminder', detail: { assignees: task.assignees, dueAt: task.dueAt } });
+    }
+    const escalateAt = 2 * Date.parse(task.dueAt) - Date.parse(task.createdAt);
+    if (!task.escalatedAt && ctx.now.getTime() >= escalateAt) {
+      task.escalatedAt = at;
+      const added: string[] = [];
+      for (const id of [...task.assignees]) {
+        const managerId = (await ctx.directory.getUser(id))?.managerId;
+        if (managerId && managerId !== state.requesterId && !task.assignees.includes(managerId)) {
+          task.assignees.push(managerId);
+          added.push(managerId);
+        }
+      }
+      events.push({ ...base, action: 'sla_escalated', detail: { added, assignees: task.assignees } });
+    }
+  }
   return { state, events };
 }

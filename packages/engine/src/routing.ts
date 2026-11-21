@@ -184,3 +184,12 @@ export async function walk(steps: Step[], facts: Facts, handler: WalkHandler): P
   }
   return true;
 }
+
+/** Semua langkah, termasuk yang bersarang di cabang. */
+export function flattenSteps(steps: Step[]): Step[] {
+  return steps.flatMap((s) => {
+    if (s.type === 'condition') return [s, ...s.branches.flatMap((b) => flattenSteps(b.steps)), ...flattenSteps(s.otherwise)];
+    if (s.type === 'parallel') return [s, ...s.branches.flatMap(flattenSteps)];
+    return [s];
+  });
+}

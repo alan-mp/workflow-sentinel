@@ -1,0 +1,353 @@
+import { Hono } from 'hono';
+import {
+  EngineError,
+  act,
+  checkSla,
+  flattenSteps,
+  resubmit,
+  startRequest,
+  type AuditEvent,
+  type RequestState,
+  type Result,
+} from '@sentinel/engine';
+import type { AppEnv, Deps, SessionUser } from './env';
+import { randomToken, shortId } from './security';
+import {
+  D1Directory,
+  activeDelegations,
+  auditStatement,
+  commit,
+  currentVersions,
+  getVersion,
+  loadRequest,
+  noticesFor,
+  type StoredVersion,
+} from './store';
+
+type Row = Record<string, unknown>;
+
+/** Simpan hasil mesin, lalu jalankan efek samping (email, ERP). */
+export async function persist(
+  db: D1Database,
+  deps: Deps,
+  version: StoredVersion,
+  result: Result,
+  prevRev: number | null,
+  now: Date,
+): Promise<void> {
+  const notices = await noticesFor(db, result.events, result.state, version.definition, now);
+  await commit(db, { state: result.state, prevRev, events: result.events, notices, now });
+
+  for (const n of notices) {
+    const to = await db.prepare('SELECT email FROM users WHERE id = ?').bind(n.userId).first<Row>();
+    if (to) await deps.email.send({ to: to.email as string, subject: 'Approval', body: n.message });
+  }
+  if (result.events.some((e) => e.action === 'request_approved')) {
+    const base: Omit<AuditEvent, 'action'> = {
+      at: now.toISOString(),
+      actor: { type: 'system' },
+      flowVersionId: version.id,
+      requestId: result.state.id,
+    };
+    try {
+      const pushed = await deps.erp.pushApproved(result.state);
+      if (pushed) await auditStatement(db, { ...base, action: 'erp_synced', detail: pushed }).run();
+    } catch (e) {
+      await auditStatement(db, { ...base, action: 'erp_sync_failed', detail: { error: String(e) } }).run();
+    }
+  }
+}
+
+/** Akses seperlunya: hanya pemohon, approver, dan delegasi aktif mereka. */
+async function canView(db: D1Database, user: SessionUser, state: RequestState, now: Date): Promise<boolean> {
+  const involved = new Set(state.tasks.flatMap((t) => t.assignees));
+  if (state.requesterId === user.id || involved.has(user.id)) return true;
+  const delegations = await activeDelegations(db, now, 'to', [user.id]);
+  return delegations.some((d) => involved.has(d.fromUserId));
+}
+
+export function requestRoutes(deps: Deps) {
+  const app = new Hono<AppEnv>();
+
+  app.get('/flows', async (c) => {
+    const versions = await currentVersions(c.env.DB, new Date());
+    return c.json(versions.map((v) => ({ key: v.flowKey, name: v.definition.name, fields: v.definition.fields })));
+  });
+
+  app.get('/users', async (c) => {
+    const { results } = await c.env.DB.prepare('SELECT id, name FROM users ORDER BY name').all();
+    return c.json(results);
+  });
+
+  app.post('/requests', async (c) => {
+    const body = await c.req.json<{ flowKey: string; data: Record<string, unknown> }>();
+    const now = new Date();
+    const version = (await currentVersions(c.env.DB, now)).find((v) => v.flowKey === body.flowKey);
+    if (!version) return c.json({ error: 'Alur tidak ditemukan atau belum berlaku' }, 404);
+    const result = await startRequest(
+      version,
+      { id: shortId('REQ'), requesterId: c.var.user.id, data: body.data ?? {} },
+      { directory: new D1Directory(c.env.DB), now },
+    );
+    await persist(c.env.DB, deps, version, result, null, now);
+    return c.json({ id: result.state.id }, 201);
+  });
+
+  app.get('/requests', async (c) => {
+    const { results } = await c.env.DB.prepare(
+      `SELECT r.id, r.flow_key, r.status, r.created_at, r.updated_at, json_extract(v.definition, '$.name') AS flow_name
+       FROM requests r JOIN flow_versions v ON v.id = r.flow_version_id
+       WHERE r.requester_id = ? ORDER BY r.created_at DESC LIMIT 100`,
+    )
+      .bind(c.var.user.id)
+      .all();
+    return c.json(results);
+  });
+
+  app.get('/inbox', async (c) => {
+    const me = c.var.user.id;
+    const now = new Date();
+    const delegators = (await activeDelegations(c.env.DB, now, 'to', [me])).map((d) => d.fromUserId);
+    const ids = [me, ...delegators];
+    const { results } = await c.env.DB.prepare(
+      `SELECT DISTINCT t.id AS task_id, t.step_id, t.due_at, t.created_at, t.assignees, r.id AS request_id,
+              u.name AS requester_name, v.definition
+       FROM tasks t, json_each(t.assignees) a
+       JOIN requests r ON r.id = t.request_id
+       JOIN users u ON u.id = r.requester_id
+       JOIN flow_versions v ON v.id = r.flow_version_id
+       WHERE t.status = 'open' AND r.requester_id <> ? AND a.value IN (${ids.map(() => '?').join(',')})
+       ORDER BY t.due_at IS NULL, t.due_at, t.created_at`,
+    )
+      .bind(me, ...ids)
+      .all<Row>();
+    return c.json(
+      results.map((r) => {
+        const def = JSON.parse(r.definition as string);
+        const assignees: string[] = JSON.parse(r.assignees as string);
+        return {
+          taskId: r.task_id,
+          requestId: r.request_id,
+          flowName: def.name,
+          stepName: flattenSteps(def.steps).find((s) => s.id === r.step_id)?.name ?? r.step_id,
+          requesterName: r.requester_name,
+          dueAt: r.due_at,
+          createdAt: r.created_at,
+          onBehalfOf: assignees.includes(me) ? null : delegators.find((d) => assignees.includes(d)),
+        };
+      }),
+    );
+  });
+
+  app.get('/requests/:id', async (c) => {
+    const now = new Date();
+    const loaded = await loadRequest(c.env.DB, c.req.param('id'));
+    if (!loaded || !(await canView(c.env.DB, c.var.user, loaded.state, now))) {
+      return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+    }
+    const { state } = loaded;
+    const version = (await getVersion(c.env.DB, state.flowVersionId))!;
+    const steps = flattenSteps(version.definition.steps);
+    const me = c.var.user.id;
+    const delegators = (await activeDelegations(c.env.DB, now, 'to', [me])).map((d) => d.fromUserId);
+    const [events, attachments, users] = await Promise.all([
+      c.env.DB.prepare('SELECT * FROM audit_events WHERE request_id = ? ORDER BY seq').bind(state.id).all<Row>(),
+      c.env.DB.prepare('SELECT id, filename, size, uploaded_by, created_at FROM attachments WHERE request_id = ? ORDER BY created_at')
+        .bind(state.id)
+        .all(),
+      c.env.DB.prepare('SELECT id, name FROM users').all<Row>(),
+    ]);
+    const stepName = (id: unknown) => steps.find((s) => s.id === id)?.name ?? (id as string | null);
+    return c.json({
+      id: state.id,
+      flowName: version.definition.name,
+      flowVersion: version.version,
+      status: state.status,
+      round: state.round,
+      requesterId: state.requesterId,
+      isRequester: state.requesterId === me,
+      createdAt: loaded.createdAt,
+      fields: version.definition.fields,
+      data: state.data,
+      tasks: state.tasks.map((t) => ({
+        ...t,
+        stepName: stepName(t.stepId),
+        canAct:
+          t.status === 'open' &&
+          state.requesterId !== me &&
+          (t.assignees.includes(me) || delegators.some((d) => t.assignees.includes(d))),
+      })),
+      timeline: events.results.map((e) => ({
+        seq: e.seq,
+        at: e.at,
+        actorId: e.actor_id,
+        actorType: e.actor_type,
+        action: e.action,
+        stepName: stepName(e.step_id),
+        taskId: e.task_id,
+        detail: e.detail ? JSON.parse(e.detail as string) : null,
+      })),
+      attachments: attachments.results,
+      names: Object.fromEntries(users.results.map((u) => [u.id, u.name])),
+    });
+  });
+
+  app.post('/requests/:id/decision', async (c) => {
+    const body = await c.req.json<{
+      taskId: string;
+      type: 'approve' | 'reject' | 'request_revision';
+      comment?: string;
+      attachmentIds?: string[];
+    }>();
+    if (!['approve', 'reject', 'request_revision'].includes(body.type)) return c.json({ error: 'Aksi tidak dikenal' }, 400);
+    const now = new Date();
+    const loaded = await loadRequest(c.env.DB, c.req.param('id'));
+    if (!loaded) return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+    const version = (await getVersion(c.env.DB, loaded.state.flowVersionId))!;
+    const result = await act(
+      loaded.state,
+      version,
+      { actorId: c.var.user.id, taskId: body.taskId, type: body.type, comment: body.comment, attachmentIds: body.attachmentIds },
+      {
+        directory: new D1Directory(c.env.DB),
+        now,
+        delegations: await activeDelegations(c.env.DB, now, 'to', [c.var.user.id]),
+      },
+    );
+    await persist(c.env.DB, deps, version, result, loaded.rev, now);
+    return c.json({ status: result.state.status });
+  });
+
+  app.post('/requests/:id/resubmit', async (c) => {
+    const body = await c.req.json<{ data: Record<string, unknown> }>();
+    const now = new Date();
+    const loaded = await loadRequest(c.env.DB, c.req.param('id'));
+    if (!loaded || loaded.state.requesterId !== c.var.user.id) return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+    const version = (await getVersion(c.env.DB, loaded.state.flowVersionId))!;
+    const result = await resubmit(
+      loaded.state,
+      version,
+      { actorId: c.var.user.id, data: body.data ?? {} },
+      { directory: new D1Directory(c.env.DB), now },
+    );
+    await persist(c.env.DB, deps, version, result, loaded.rev, now);
+    return c.json({ status: result.state.status });
+  });
+
+  app.post('/requests/:id/attachments', async (c) => {
+    const now = new Date();
+    const loaded = await loadRequest(c.env.DB, c.req.param('id'));
+    if (!loaded || !(await canView(c.env.DB, c.var.user, loaded.state, now))) {
+      return c.json({ error: 'Permintaan tidak ditemukan' }, 404);
+    }
+    const file = (await c.req.formData()).get('file') as unknown;
+    if (!(file instanceof File)) return c.json({ error: 'File tidak ada' }, 400);
+    if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Ukuran file maksimal 10 MB' }, 400);
+    const id = randomToken(8);
+    await c.env.FILES.put(`attachments/${id}`, await file.arrayBuffer());
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        'INSERT INTO attachments (id, request_id, uploaded_by, filename, content_type, size, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      ).bind(id, loaded.state.id, c.var.user.id, file.name, file.type || 'application/octet-stream', file.size, now.toISOString()),
+      auditStatement(c.env.DB, {
+        at: now.toISOString(),
+        actor: { type: 'user', id: c.var.user.id },
+        action: 'attachment_added',
+        flowVersionId: loaded.state.flowVersionId,
+        requestId: loaded.state.id,
+        detail: { attachmentId: id, filename: file.name },
+      }),
+    ]);
+    return c.json({ id, filename: file.name }, 201);
+  });
+
+  app.get('/attachments/:id', async (c) => {
+    const row = await c.env.DB.prepare('SELECT * FROM attachments WHERE id = ?').bind(c.req.param('id')).first<Row>();
+    const loaded = row && (await loadRequest(c.env.DB, row.request_id as string));
+    if (!row || !loaded || !(await canView(c.env.DB, c.var.user, loaded.state, new Date()))) {
+      return c.json({ error: 'File tidak ditemukan' }, 404);
+    }
+    const object = await c.env.FILES.get(`attachments/${row.id}`);
+    if (!object) return c.json({ error: 'File tidak ditemukan' }, 404);
+    return new Response(object.body, {
+      headers: {
+        'content-type': 'application/octet-stream',
+        'content-disposition': `attachment; filename="${encodeURIComponent(row.filename as string)}"`,
+        'x-content-type-options': 'nosniff',
+      },
+    });
+  });
+
+  app.get('/delegations', async (c) => {
+    const { results } = await c.env.DB.prepare(
+      `SELECT d.id, d.from_user_id, d.to_user_id, d.starts_at, d.ends_at, f.name AS from_name, t.name AS to_name
+       FROM delegations d JOIN users f ON f.id = d.from_user_id JOIN users t ON t.id = d.to_user_id
+       WHERE (d.from_user_id = ? OR d.to_user_id = ?) AND d.ends_at > ? ORDER BY d.starts_at`,
+    )
+      .bind(c.var.user.id, c.var.user.id, new Date().toISOString())
+      .all();
+    return c.json(results);
+  });
+
+  app.post('/delegations', async (c) => {
+    const body = await c.req.json<{ toUserId: string; startsAt: string; endsAt: string }>();
+    const starts = Date.parse(body.startsAt);
+    const ends = Date.parse(body.endsAt);
+    if (Number.isNaN(starts) || Number.isNaN(ends) || ends <= starts) {
+      return c.json({ error: 'Delegasi wajib punya waktu mulai dan selesai yang valid' }, 400);
+    }
+    if (body.toUserId === c.var.user.id) return c.json({ error: 'Tidak bisa mendelegasikan ke diri sendiri' }, 400);
+    if (!(await new D1Directory(c.env.DB).getUser(body.toUserId))) return c.json({ error: 'User tidak ditemukan' }, 400);
+    const id = randomToken(8);
+    await c.env.DB.prepare(
+      'INSERT INTO delegations (id, from_user_id, to_user_id, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+      .bind(id, c.var.user.id, body.toUserId, new Date(starts).toISOString(), new Date(ends).toISOString(), new Date().toISOString())
+      .run();
+    return c.json({ id }, 201);
+  });
+
+  app.delete('/delegations/:id', async (c) => {
+    await c.env.DB.prepare('DELETE FROM delegations WHERE id = ? AND from_user_id = ?').bind(c.req.param('id'), c.var.user.id).run();
+    return c.json({ ok: true });
+  });
+
+  app.get('/notifications', async (c) => {
+    const { results } = await c.env.DB.prepare(
+      'SELECT id, request_id, message, created_at, read_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
+    )
+      .bind(c.var.user.id)
+      .all();
+    return c.json(results);
+  });
+
+  app.post('/notifications/read', async (c) => {
+    await c.env.DB.prepare('UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL')
+      .bind(new Date().toISOString(), c.var.user.id)
+      .run();
+    return c.json({ ok: true });
+  });
+
+  return app;
+}
+
+/** Dijalankan Cron Trigger: pengingat dan eskalasi untuk tugas yang lewat tenggat. */
+export async function runSla(db: D1Database, deps: Deps, now: Date): Promise<number> {
+  const { results } = await db
+    .prepare(`SELECT DISTINCT request_id FROM tasks WHERE status = 'open' AND due_at IS NOT NULL AND due_at <= ?`)
+    .bind(now.toISOString())
+    .all<Row>();
+  let changed = 0;
+  for (const row of results) {
+    const loaded = await loadRequest(db, row.request_id as string);
+    if (!loaded) continue;
+    const version = (await getVersion(db, loaded.state.flowVersionId))!;
+    const result = await checkSla(loaded.state, version, { directory: new D1Directory(db), now });
+    if (result.events.length === 0) continue;
+    await persist(db, deps, version, result, loaded.rev, now);
+    changed++;
+  }
+  return changed;
+}
+
+export { EngineError };

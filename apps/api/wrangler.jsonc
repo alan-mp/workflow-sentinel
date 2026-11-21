@@ -1,0 +1,22 @@
+{
+  "name": "workflow-sentinel",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "../web/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // Buat dengan: wrangler d1 create sentinel --location apac, lalu isi database_id.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "sentinel", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "sentinel-files" }],
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    // https://gateway.ai.cloudflare.com/v1/<account_id>/<gateway_id>/anthropic
+    "AI_GATEWAY_URL": ""
+  }
+  // Secret (wrangler secret put): ANTHROPIC_API_KEY, opsional AI_GATEWAY_TOKEN
+}
