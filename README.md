@@ -43,7 +43,7 @@ The demo runs on sample data. Demo flow and step names are in Indonesian because
 ## Documentation
 | Document | Contents |
 |---|---|
-| [docs/validation.md](docs/validation.md) | 7-step idea validation: result, sources, cheap tests, risk register ([full report](docs/validation-report.html)) |
+| [docs/validation.md](docs/validation.md) | 7-step idea validation: verdict, measured evidence, owner interview, pilot design, risk register ([appendix: source research](docs/validation-report.html)) |
 | [docs/PRD.md](docs/PRD.md) | One-page product requirements with acceptance criteria |
 | [docs/spec.md](docs/spec.md) | Data model, interfaces, acceptance tests, deployment, revisions after review |
 | [docs/architecture.md](docs/architecture.md) | Architecture diagram and design decisions |
@@ -72,7 +72,7 @@ npm run dev          # http://localhost:8787
 
 ```bash
 npm run typecheck    # TypeScript, all packages
-npm test             # 102 unit and API tests
+npm test             # 107 unit and API tests
 npm run build        # production build of the web app
 ```
 

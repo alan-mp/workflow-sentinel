@@ -90,7 +90,7 @@ Rule evaluation has a parity test: over 40,000 combinations of operators and val
 reference semantics (`rules.test.ts`).
 
 ## 5. Test and deployment plan
-- `npm run typecheck`, `npm test` (102 tests), and `npm run build` must pass locally and in CI.
+- `npm run typecheck`, `npm test` (107 tests), and `npm run build` must pass locally and in CI.
 - GitHub Actions (`.github/workflows/ci.yml`): every push and pull request runs audit, typecheck, tests, and build.
 - Deployment is manual: `npm run deploy:test` builds the web app and deploys the Worker; D1 migrations are applied
   with `wrangler d1 migrations apply`. The Cloudflare account is read from `CLOUDFLARE_ACCOUNT_ID`, and no cloud

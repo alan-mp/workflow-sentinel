@@ -1,84 +1,189 @@
 # Idea validation: the 7 steps
 
-Sentinel was validated with the course's 7-Step Validation in Deep Research mode on 21 November 2026.
-The full report, with all 149 verified evidence items, quotes, judge notes, and 93 sources, is in
-[validation-report.html](validation-report.html) (in Indonesian; download and open in a browser).
+Sentinel is an **internal tool for one company**, a mid-size export manufacturer with about 250 office staff. It is
+not a product for sale, so "market", "customer" and "competition" are read internally: the size of the problem inside
+the company, the people who have it, and the alternatives the company realistically has.
 
-## What is being validated
-Sentinel is an **internal tool for one company**, a mid-size export manufacturer with about 250 office staff.
-It is not a product for sale: there is no market, no customers, and no revenue. The question is whether it closes
-a real gap compared with how approvals work at the company today:
+**The problem in one sentence:** every internal system has its own approval logic, so approvals are long-winded,
+nobody is sure who approves what, and each change to a chain or to the organization is a development task repeated
+in every system.
 
-- **Modules of the in-house HR application.** Leave, business trips and other request types each have their own
-  module, and each module carries its own approver columns and rules.
-- **Chat and email** for everything else, and for chasing requests that are stuck.
+## Verdict: go to pilot
 
-The gap, in one sentence: approval logic is scattered across modules and channels, so people are unsure where to
-file a request and who will approve it, and changing a chain means changing an application.
+The problem, the people who have it, its size, and the gap are supported by evidence from three independent kinds
+of source. What is not yet shown is behaviour: no request has run through Sentinel in real use. The next step is
+therefore the pilot in step 6, not more building.
 
-The seven step names and "Testing" sentences are used as written in the course material. Two are read internally:
-step 3 measures the size of the internal problem against the cost of running the tool (not a market), and step 4
-compares the realistic alternatives the company has (not market competitors).
+| # | Step | Reading | Basis |
+|---|---|---|---|
+| 1 | Define the Problem | **Supported** | Measured in four systems, confirmed by a year of helpdesk tickets and by the project owner |
+| 2 | Profile the Target Customer | **Supported** | Requesters, approvers and process owners inside the company; tickets come from over sixty people in over twenty departments |
+| 3 | Size the Market (internal opportunity) | **Supported against the stated target** | Well over twenty thousand approval items a year across systems whose source code the same IT team controls |
+| 4 | Map the Competition (alternatives) | **Supported, with a caveat** | No alternative puts the rules in one place; ready-made tools were read from documentation, not trialled |
+| 5 | Define Your Edge | **Partly supported** | Why now is strong; why us rests on one part-time developer and management that is aware but has not formally mandated it |
+| 6 | Design a Cheap Test | **Designed, not yet run** | Three pilot flows and pass marks are fixed below |
+| 7 | Stress-Test the Idea | **Risks known, one unresolved** | Nobody yet owns the organization structure |
 
-## Result: Fix first
+## How this was validated
+Three kinds of evidence, kept apart so that a reader can weigh each:
 
-Every step is **Partial**. No step was refuted and neither judge found a fatal flaw, but step 1 is not yet
-Proven, so the written rules give **Fix first** rather than Go.
+1. **Measured data** from one year of the company's own systems (HR application, ERP, product-development
+   application, IT helpdesk). Exact figures are withheld; the wording below is approximate on purpose.
+2. **A structured interview with the project owner** (in-house IT, the person who receives the approval-related
+   requests), held on 21 November 2026. These are statements, marked as such.
+3. **Published sources**, each re-opened and checked against its quote by a separate checker. They are listed under
+   Key sources and in full in [validation-report.html](validation-report.html).
 
-The problem is measured in the company's own data, but all of those measurements come from one source and describe
-records, not what people say or do about it. The two things that would move the result are direct statements from
-requesters, approvers and process owners, and the outcome of one real pilot.
+An earlier run scored this idea with a generic startup rubric and looked only at the HR application. That missed the
+point of the project, which is the spread of approval logic across systems, so the scope was widened to every system
+and the owner was interviewed. The earlier run's external research is kept as the appendix report; its statuses are
+superseded by this document.
 
-## The gap in the company's own data
-Measured from one year of HR records for office staff. Exact figures are withheld; outside readers cannot check them.
+## 1. Define the Problem
+*Testing: A real, specific pain point exists that people actively try to solve*
+
+**Measured**
 
 | Finding | What it means |
 |---|---|
-| More than ten HR modules each carry their own approver columns; the business-trip module has a fixed chain built into its table | Approval logic is scattered, and adding a request type or changing a chain is a development task |
-| The recorded first-level approver matches the superior implied by the job hierarchy for only about half of employees | The stored approver cannot be trusted as "the superior" |
-| Most departments had more than one person acting as department-head approver for business trips; about two thirds of office staff had leave approved by more than one person in a year | Who approves depends on the request, not on a rule anyone can read |
-| A business trip passes about four approval stages; about three in ten take more than three days, and about three in ten get final approval only after the trip has started | Approval is often a formality after the fact rather than a control |
-| Most leave is approved the same day, but roughly one in seven takes more than three days | Delay is concentrated in a minority of requests |
-| A small number of requests had the requester in their own approval chain | Separation of duties is not enforced |
+| Approval records exist in at least four separate systems (HR application, ERP, product-development application, production portal), each with its own approver fields and status | Approval logic is scattered |
+| In the HR application alone, more than ten modules carry their own approver columns; the business-trip module has a fixed chain of up to five roles, recruitment requests have five fixed status columns | A change to a chain is a change to an application |
+| The recorded first-level approver matches the superior implied by the job hierarchy for only about half of employees; about two thirds of office staff had leave approved by more than one person in a year | Who approves is not something anyone can read off a rule |
+| About three in ten business trips take more than three days to approve, and about three in ten get final approval only after the trip has started | Approval is often a formality after the fact |
+| About half of asset mutations take more than three days, and about one in ten takes around a month | The slowest flows are the ones nobody chases |
+| About one in seven purchase requisitions and one in six product-development approvals takes more than three days | The delay is not limited to HR |
+| About seven percent of all IT helpdesk tickets in a year mention approval. They come from over sixty employees in over twenty departments and concern four systems. About three in ten are about who the approver is, about three in ten about an approval that is stuck. Most are handled as software-development requests | People actively try to solve it, and the way they do is to ask a developer |
 
-## How it was done
-Separated roles, so that no role could favor the idea: one researcher per step collected evidence for and against;
-one source checker per step re-opened every URL and matched every quote (149 of 150 items passed); two judges on
-different models scored each step blind from the verified evidence only. Statuses and the recommendation come from
-a written rubric. The judges agreed on all seven steps.
+**Project owner's statements**
+- The complaints heard most: not knowing who the approver is, too many stages, requests stuck with nobody aware,
+  every system working differently, and an organization structure that keeps changing.
+- A change to an approval rule goes to IT as a ticket and a developer changes code. This happens several times a month.
+- After a reorganization the previous approver keeps receiving requests, running requests hang, IT updates each
+  system one by one, and the systems end up disagreeing about who reports to whom.
+- When an approval is stuck, people chase by chat or phone, do the work first and get approval afterwards, or have
+  someone approve on another's behalf.
 
-This is the second run. The first run framed Sentinel as a product with a later market of other manufacturers,
-which produced market sizing and a SaaS competitor comparison that did not fit the project. The brief was rewritten
-for the internal scope, steps 3 and 4 were researched and checked again from scratch, the internal measurements above
-were added, and all seven steps were judged again.
+**Against**
+- Most leave requests and most purchase orders are approved the same day. The problem is concentrated in multi-stage
+  and cross-department flows, not everywhere.
+- The ticket figure is a keyword match; tickets were not read one by one.
 
-## Summary
-| # | Step | Status | What the evidence says |
-|---|---|---|---|
-| 1 | Define the Problem | Partial | The company's own data shows scattered approval logic, inconsistent approvers, and late approvals. But it is one source and measures records, not complaints or workarounds. Counter-evidence: most leave is approved the same day. Missing: direct words from the people involved. |
-| 2 | Profile the Target Customer | Partial | The group is identifiable and reachable because it is inside the company: approvers, requesters, process owners. Whether the organization will spend staff time on it has no direct evidence yet. |
-| 3 | Size the Market (internal opportunity) | Partial | Roughly nine to thirteen thousand approval decisions a year in the two measured request types. Follow-up time that could be saved is worth less than part-time maintenance by one developer; the case only balances when unmeasured request types, after-the-fact approvals, or avoided licences (about USD 45,000 a year at list price for 250 users) are counted. No target was set, so Partial is the ceiling. |
-| 4 | Map the Competition (alternatives) | Partial | Keeping or extending the HR modules leaves the logic scattered; chat and email have no routing or audit trail. Ready-made tools already cover several needs (dynamic approver from a master table, versioned flows, inbound webhooks, time-boxed delegation). Not found in the tools read: approvers computed from an organization tree with acting heads, vacancies and exceptions; simulation; second-person activation. |
-| 5 | Define Your Edge | Partial | Why now is supported: structured LLM output, MCP as a cross-vendor standard, near-zero running cost on serverless. Why us rests on access to the company's data and a working application, which are user claims. Counter-evidence: in-house tools are often abandoned. |
-| 6 | Design a Cheap Test | Partial | No real test of this idea has run yet. Comparable rollouts measured adoption by share of transactions and reported faster cycle times. Three tests are designed below. |
-| 7 | Stress-Test the Idea | Partial | Risks are identified, but three high risks have no proven mitigation yet: one-developer dependency, organization data quality, and adoption. |
+## 2. Profile the Target Customer
+*Testing: A reachable, identifiable group of people has this problem badly enough to pay*
 
-## Gap matrix (step 4)
-| Need | HR modules as they are | Extend the HR application | Chat and email | Ready-made tools read | Sentinel |
+Nobody pays; the organization spends staff time. The group is inside the company and reachable by definition.
+
+| Who | What they lose today | Evidence |
+|---|---|---|
+| Requesters (office staff) | Waiting, and chasing approvers by chat | Delay figures above; owner's statement |
+| Approvers and managers | Several systems to open; approvals pile up or arrive for people they no longer manage | Owner's statement; approver mismatch in the data |
+| Process owners (HR, finance, legal, engineering) | Cannot change their own rules; hard to show compliance | Owner's statement; tickets filed as development requests |
+| IT | Developer time on approver changes in every system | Helpdesk tickets; owner's statement |
+
+Still missing: the same statements in the words of requesters, approvers and process owners outside IT. Five short
+interviews would close this.
+
+## 3. Size the Market
+*Testing: The opportunity is large enough to build a sustainable business*
+
+**The owner's target:** the tool is worth running if all approval types across these systems can move to one rule
+engine and changing a flow no longer needs a developer. The measure is coverage and independence, not money.
+
+- **Volume:** well over twenty thousand approval items a year: several thousand leave requests and over a thousand
+  business trips in the HR application, over four thousand purchase requisitions, about five thousand purchase orders
+  and about five thousand payment requests in the ERP, and about six thousand approval records in the
+  product-development application.
+- **Coverage is reachable:** the in-house applications are built and maintained by the same IT team, so they can be
+  changed to file requests through Sentinel's API and listen for the outcome (owner's statement).
+- **Independence is the open half:** today every rule change needs a developer (owner's statement, helpdesk
+  tickets). Whether process owners will change flows themselves is not yet tested; it is test 3 below.
+- **Running cost** is small: serverless hosting starts at USD 5 a month, and a ready-made tool at list price would
+  cost about USD 45,000 a year for 250 users (see Key sources).
+
+**Against:** counted in money alone, the case is thin. Follow-up time saved on slow requests is worth less than
+part-time maintenance by one developer, because wages are low relative to software cost. The case rests on control,
+traceability and not repeating the same change in every system, which is why the target is stated as coverage.
+
+## 4. Map the Competition
+*Testing: No existing solution fully solves the problem — there's a gap worth filling*
+
+The alternatives are what the company could do instead.
+
+| Need | Each system keeps its own approval logic | Extend each system | Chat and email | Ready-made tools read | Sentinel |
 |---|---|---|---|---|---|
-| Approver computed from an organization tree, with acting heads, vacancies, exceptions | No | Must be built per module | No routing | Partly: one-level lookup or a stored manager chain; fails when the manager is empty | Built |
-| Separate authority matrix | No | Could be built | No | Not found as a built-in feature | Built |
-| Requester never approves own request | Leaks in a few cases | Per module | No control | Present in one tool read | Enforced in the engine |
+| One place for approval rules across systems | No | No, the rules stay per system | No | Only for flows moved into the tool; in-house applications keep their own | Yes, through the API and webhooks |
+| Approver computed from an organization tree, with acting heads, vacancies, exceptions | No | Must be built in each system | No routing | Partly: one-level lookup or a stored manager chain; fails when the manager is empty | Built |
+| A reorganization is entered once and open tasks move | No, each system is updated separately | No | No | Not found | Built |
+| Separate authority matrix | No | Could be built per system | No | Not found as a built-in feature | Built |
+| Requester never approves own request | Leaks in a few cases | Per system | No control | Present in one tool read | Enforced in the engine |
 | Versioned flows, simulation, second-person activation | No | Would need building | Not applicable | Versioning yes; simulation and second-person activation not found | Built |
-| Rules owned by non-developers | No | No | No written rules | Yes in no-code tools | Claimed, not yet tested with real process owners |
-| Inbound API for other systems to file a request | No (assumed) | Would need building | No | Yes | Built after this validation |
-| Outbound webhook when an approval finishes | No (assumed) | Would need building | No | Not verified | Built after this validation |
-| Cost for about 250 users | None new | Developer time per module | None | USD 15 per user per month at one list price; others by quote only | One in-house developer to maintain it |
+| Rules owned by non-developers | No | No | No written rules | Yes in no-code tools | Built, not yet tested with real process owners |
+| Other systems file a request and learn the outcome | Not applicable | Not applicable | No | Yes | Built and tested; no internal system connected yet |
+| Cost for about 250 users | None new, but every change costs developer time | Developer time per system | None | USD 15 per user per month at one list price; others by quote only | One in-house developer to maintain it |
 
-"Not found" means not on the documentation pages that were opened, not proven absent. User review sites could not
-be opened. The Sentinel column describes the application in this repository; the research had no outside evidence
-for it. The validation run recorded the inbound API and webhooks as planned; they were built in response to it and
-are specified in [spec.md](spec.md).
+**Why not a ready-made tool (owner's statements):** it cannot unify the in-house systems, it cannot follow a
+structure with acting heads, vacancies and frequent changes, and it is licensed per user.
+
+**Caveats:** "not found" means not on the documentation pages that were opened, not proven absent. No ready-made
+tool was trialled side by side, and user review sites could not be opened. The ERP's own purchase-order approval is
+fast and may be better left where it is.
+
+## 5. Define Your Edge
+*Testing: You have a specific reason why you — and this timing — can win*
+
+**Why now**
+- Internal systems keep being added, and each new one brings its own approval logic (owner's statement).
+- Reorganizations are frequent, and each one has to be applied system by system (owner's statement; approver mismatch in the data).
+- There is audit and compliance pressure for a traceable record of approvals (owner's statement).
+- One developer with AI coding tools can now build and maintain this; LLMs produce reliable structured output from
+  policy text, and MCP lets assistants act with the user's own permissions (published sources).
+
+**Why us**
+- The same IT team holds the source code of the in-house applications that have to be connected.
+- The application exists, is deployed, and has 107 automated tests.
+- The team has read access to the data that shows where approvals are slow.
+
+**Weak points:** one developer, part time; management knows about the initiative but has not formally mandated it.
+
+## 6. Design a Cheap Test
+*Testing: People will change their behaviour (and pay) for a solution to this problem*
+
+Nothing has been tested in real use yet. The owner chose three flows that together exercise the three hard parts:
+a long chain, a second in-house module, and an outside system.
+
+| Pilot flow | What it tests | Baseline today |
+|---|---|---|
+| Business trips | A four-stage chain computed from the organization tree | About three in ten take more than three days; about three in ten are approved after the trip starts |
+| Legal tickets | A second module of the HR application filing through the API | Several hundred a year; fewer than half have an approval date recorded at all |
+| ERP approvals (purchase requisitions first) | Integration with a system the team does not fully control | About one in seven takes more than three days |
+
+Pass marks, fixed before the pilot (four weeks per flow, judged on the last two):
+
+| Criterion (from the owner) | Passes if |
+|---|---|
+| Approval is faster | The share taking more than three days is at most half the baseline, and no business trip is approved after it starts |
+| A reorganization stalls nothing | One real or staged change of unit head moves every open task to the new head with no IT intervention |
+| The flow is visible | Every requester can see which step and which person their request waits on, and no ticket about "who is my approver" is filed for a pilot flow |
+| Integration holds | Every request filed by the other system appears in Sentinel exactly once, and every outcome reaches the other system (no failed deliveries left) |
+| Rules change without a developer | A process owner makes at least one rule change themselves |
+
+Two cheaper checks can run before the pilot: replay about fifty past business trips through the approver calculation
+and ask unit heads whether the computed approver is the right one; and five short interviews outside IT (step 2).
+
+## 7. Stress-Test the Idea
+*Testing: The risks are known and manageable — or reveal a fatal flaw before you invest*
+
+| Risk | Level | Mitigation | What would settle it |
+|---|---|---|---|
+| Nobody owns the organization structure (the owner's main worry). Computing approvers from a tree needs someone to decide and maintain the correct tree | High | Organization owners with second-person review; structure findings and a coverage test in the app | HR or management accepting ownership in writing |
+| One part-time developer; AI-written code nobody else knows | High | Documentation, tests, CI, generated types; a second person deploys and fixes a bug from the docs alone | A completed handover exercise |
+| Sentinel becomes a single point of failure for every system's approvals | High once systems are connected | Stateless Worker on a managed platform, webhook retries, idempotent API; a documented fallback per system | An outage drill during the pilot |
+| People keep using chat and the old screens | Medium | Pilot one flow at a time and switch the old screen off for it | Usage share in the pilot |
+| The AI drafts a wrong rule and the reviewer accepts it | Medium | Machine-checked citations, validation, simulation, activation as a separate human step | Error count on real SOPs |
+| A ready-made tool would have covered the need at lower total cost | Medium | Side-by-side trial of one tool on the company's real cases before wider rollout | The trial result and a quote |
+
+No condition was found that makes the idea unworkable. The first risk is the one that could: if nobody decides
+which structure is correct, no software can compute the right approver.
 
 ## Key sources
 | Step | Evidence | Source |
@@ -101,45 +206,15 @@ are specified in [spec.md](spec.md).
 | 7 | "Turnover technical debt" when the only developer leaves | [TechDebt 2026](https://conf.researchr.org/details/TechDebt-2026/TechDebt-2026-main/4/-That-Developer-Left-the-Project-An-Introduction-and-Case-Study-of-Turnover-Techni) |
 | 7 | AI-built internal tools are cheap to make but not cheap to own | [QA Wolf](https://www.qawolf.com/blog/the-graveyard-of-ai-built-internal-tools-keeps-growing) |
 
-The full list with titles and dates is in the report.
+The full list with titles, dates, quotes and checker notes is in [validation-report.html](validation-report.html).
 
-## Target user and "why now"
-- **Target user:** approvers, requesters and process owners inside the company; in the first phase, its own IT team.
-- **Why now:** LLMs can reliably produce structured output from policy text, MCP lets assistants use the same
-  functions with the user's permissions, and a serverless platform makes an internal tool almost free to run.
-- **Differentiating angle:** one place for approval logic instead of one set of rules per module. Approvers are
-  computed from the organization tree with vacancy escalation and a stated reason, flows are versioned and activated
-  by a second person, and other systems connect through an API and webhooks rather than carrying their own rules.
-
-## Cheap tests (step 6)
-Pass marks were fixed before running any test. They are design choices, not figures from a source.
-
-| Test | Assumption tested | Duration | Passes if |
-|---|---|---|---|
-| 1. Process owners build a flow from their own SOP without the developer | Process owners will maintain flows themselves | 1 week, 5 people | At least 4 of 5 reach activation within 60 minutes with no approval step missing |
-| 2. Replay about 50 past business-trip requests through the approver calculation | The organization tree gives the approver the business considers correct | 3–5 days | The HR process owner judges at least 45 of 50 correct, and no requester is in their own chain |
-| 3. Live pilot of IT access requests | People actually switch from chat and email | 2 weeks baseline, 4 weeks pilot, judged on weeks 3–4 | At least 80% of requests go through the app, at least 80% are decided within SLA without chasing, median time to decision falls at least 30%, and one non-IT function head commits in writing to move a process |
-
-## Risk register (step 7)
-| Risk | Level | Mitigation | Evidence that would change the assessment |
-|---|---|---|---|
-| One in-house developer; AI-written code nobody else knows | High | Documentation, tests, CI, and a second person who has deployed and fixed a bug from the docs alone | A completed handover exercise |
-| Organization data is inconsistent, and computing approvers from a tree needs one agreed structure | High | Organization owners with second-person review; structure findings and the coverage test; test 2 above | HR's written ownership of the tree and the result of reconciling it |
-| Low adoption; people keep using chat and email | High | Pilot with one process and fixed adoption thresholds; phone-first approval; test 3 above | Usage data from the pilot |
-| The AI drafts a wrong rule and the reviewer accepts it | Medium | Machine-checked citations, validation, simulation, and activation as a separate human step | Error rate of AI drafts measured in test 1 |
-| A ready-made tool, or extending the current HR application, would cover the need at lower cost | Medium | Side-by-side trial of one ready-made tool on the company's real cases (vacant head, acting head, requester in own chain) and a quote for about 250 users | The trial result and the quote |
-| Other systems cannot hand requests to Sentinel or learn the outcome, so approval logic stays scattered | Medium | Inbound API and signed outbound webhooks (built) | One internal system integrated end to end |
-
-The stress test found no condition that makes the idea unworkable. It did name one conditional risk: if nobody in HR
-or management decides which organization structure is correct and maintains it, computing approvers from it cannot
-work however well the software is built.
 
 ## Limits of this validation
-- The internal evidence comes from one company's HR data and is reported without exact figures; outside readers
-  cannot check it, and the judges counted all of it as a single source.
-- That scattered approval logic confuses people is the project owner's statement. The data measures the scatter,
-  not the confusion.
-- The step 3 calculation uses assumed inputs (exact volumes, leave stages, maintenance share, exchange rate).
-- Review sites (G2, Capterra, GetApp, Software Advice) could not be opened, so there are no user complaints about
-  the ready-made tools.
-- No target size was set for step 3, which caps it at Partial.
+- The measured data comes from one company's systems and is reported without exact figures; outside readers cannot
+  check it.
+- The interview is with one person, the project owner in IT. It is first-hand for how changes are handled and
+  second-hand for what requesters and approvers experience.
+- Nothing has run through Sentinel in real use. Step 6 is a design.
+- Ready-made tools were assessed from documentation only.
+- The readings in the verdict table are the author's, made from the evidence shown here. The appendix report holds
+  an independent scoring of an earlier, narrower scope.
