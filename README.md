@@ -11,13 +11,7 @@ people decide.
 
 **Live demo:** https://workflow-sentinel-test.developer-24e.workers.dev
 
-| Demo account (password `demo1234`) | Role |
-|---|---|
-| `budi@contoh.test` | Requester (Production Line) |
-| `andi@contoh.test` | Approver: head of Production Line, Budi's superior |
-| `fajar@contoh.test` | Approver: finance authority |
-| `hana@contoh.test` | Process owner and organization owner |
-| `hadi@contoh.test` | System administrator (can do everything, including Integrations) |
+Demo accounts for the live demo are listed in the submission document.
 
 The live demo runs on a fictional 25-person organization (four levels, an acting head, a vacant head); the structure
 is in `apps/api/scripts/demo/`. No real employee data is used. Flow, step and unit names are in Indonesian because
