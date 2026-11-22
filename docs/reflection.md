@@ -27,8 +27,9 @@ normal for us, and our existing approver data reflects years of manual changes. 
 and to model the organization with owners, a second reviewer for every change, and a coverage test that shows whose
 approval path would dead-end.
 
-**Keeping the scope realistic.** There were many good ideas: master data, more integrations, an MCP server. I had to
-keep asking what the minimum was that solved the problem, and leave the rest for later.
+**Keeping the scope realistic.** There were many good ideas, and the scope grew: the integration API and the MCP
+server went in, while master data and connections to more systems were left for later. I had to keep asking what
+the minimum was that solved the problem.
 
 ## How I worked with AI
 I directed and the AI did the work. I decided the problem, the business rules and the limits, for example that the

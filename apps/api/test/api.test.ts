@@ -688,6 +688,9 @@ describe('ringkasan AI dan tanda anomali', () => {
     expect(own.summary).toBeTruthy();
     expect(own).not.toHaveProperty('anomalies');
     expect(own).not.toHaveProperty('anomalyNote');
+    const actions = async (who: string) => (await t.call(who, 'GET', `/requests/${second}`)).body.timeline.map((e: any) => e.action);
+    expect(await actions('budi')).not.toContain('anomalies_flagged');
+    expect(await actions(approver)).toContain('anomalies_flagged');
 
     const row = (await t.call(approver, 'GET', '/inbox')).body.find((x: any) => x.requestId === second);
     expect(row.flags).toBeGreaterThanOrEqual(1);

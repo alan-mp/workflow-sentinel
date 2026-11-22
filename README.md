@@ -62,7 +62,7 @@ they are data entered by users; the interface is in English.
 
 ## Stack
 TypeScript throughout. React 18 + Vite for the web app; Hono on Cloudflare Workers for the API; D1 (SQLite), R2, and KV
-for storage; `json-rules-engine` for rule evaluation; Claude through Cloudflare AI Gateway for the drafter; the
+for storage; `json-rules-engine` for rule evaluation; Claude through Cloudflare AI Gateway for the drafter and the briefing; the
 Model Context Protocol SDK and Cloudflare's OAuth provider for the MCP server; Vitest for tests.
 
 ```
@@ -86,7 +86,8 @@ npm test             # 131 unit and API tests
 npm run build        # production build of the web app
 ```
 
-The AI drafter is off locally because it needs the Cloudflare AI binding; everything else works offline.
+The AI drafter and the AI briefing are off locally because they need the Cloudflare AI binding; anomaly flags and
+everything else work offline.
 
 ## CI/CD
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request: dependency audit,
@@ -109,7 +110,7 @@ The test environment deploys with `CLOUDFLARE_ACCOUNT_ID=<account id> npm run de
 the environment and is not written in the repository.
 
 ### AI without keys
-The drafter reaches Claude through the Worker `AI` binding and a Cloudflare AI Gateway with Unified Billing, so the
+The drafter and the briefing reach Claude through the Worker `AI` binding and a Cloudflare AI Gateway with Unified Billing, so the
 Worker stores no provider key and no gateway token.
 
 1. In the Cloudflare dashboard, create an AI Gateway and add credits under "Credits Available".
@@ -154,4 +155,5 @@ Then run `/mcp` to sign in. The tool list is in [`apps/api/src/mcp.ts`](apps/api
 - No secrets in the repository; the demo password is sample data only.
 - Sessions are HttpOnly, SameSite=Strict cookies; passwords are stored as PBKDF2 hashes.
 - A request is visible only to its requester, approvers, and their delegates.
-- The AI drafter never receives employee data, and its output passes the same validation as a human edit.
+- The AI drafter never receives employee data, and its output passes the same validation as a human edit. The
+  briefing receives the request and the requester's name and unit, and only writes text.

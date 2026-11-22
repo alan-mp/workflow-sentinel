@@ -252,16 +252,19 @@ export function requestRoutes(deps: Deps) {
           state.requesterId !== me &&
           (t.assignees.includes(me) || delegators.some((d) => t.assignees.includes(d))),
       })),
-      timeline: events.results.map((e) => ({
-        seq: e.seq,
-        at: e.at,
-        actorId: e.actor_id,
-        actorType: e.actor_type,
-        action: e.action,
-        stepName: stepName(e.step_id),
-        taskId: e.task_id,
-        detail: e.detail ? JSON.parse(e.detail as string) : null,
-      })),
+      // The requester must not learn that their request was flagged, so that event is left out of their history.
+      timeline: events.results
+        .filter((e) => !(state.requesterId === me && e.action === 'anomalies_flagged'))
+        .map((e) => ({
+          seq: e.seq,
+          at: e.at,
+          actorId: e.actor_id,
+          actorType: e.actor_type,
+          action: e.action,
+          stepName: stepName(e.step_id),
+          taskId: e.task_id,
+          detail: e.detail ? JSON.parse(e.detail as string) : null,
+        })),
       attachments: attachments.results,
       insight: await insightFor(c.env.DB, state.id, state.requesterId === me),
       names: Object.fromEntries(users.results.map((u) => [u.id, u.name])),

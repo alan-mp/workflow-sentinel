@@ -37,7 +37,7 @@
 
   "env": {
     // Lingkungan test: Worker "workflow-sentinel-test". Akun Cloudflare diambil dari variabel lingkungan
-    // CLOUDFLARE_ACCOUNT_ID (secret di GitHub Actions, atau di shell saat deploy manual), tidak ditulis di sini.
+    // CLOUDFLARE_ACCOUNT_ID di shell saat deploy manual; tidak ditulis di sini dan tidak disimpan di GitHub.
     // Deploy: npm run deploy:test. Binding D1, R2, KV, dan vars tidak diwarisi, jadi ditulis ulang di sini.
     "test": {
       "observability": { "enabled": true, "traces": { "enabled": true } },

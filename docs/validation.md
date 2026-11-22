@@ -14,15 +14,17 @@ The problem, the people who have it, its size, and the gap are supported by evid
 of source. What is not yet shown is behaviour: colleagues on the IT team have tried it, but no business request has
 run through Sentinel in real use. The next step is therefore the pilot in step 6, not more building.
 
-| # | Step | Reading | Basis |
-|---|---|---|---|
-| 1 | Define the Problem | **Supported** | Measured in four systems, confirmed by a year of helpdesk tickets and by the project owner |
-| 2 | Profile the Target Customer | **Supported** | Requesters, approvers and process owners inside the company; tickets come from over sixty people in over twenty departments |
-| 3 | Size the Market (internal opportunity) | **Supported against the stated target** | Well over twenty thousand approval items a year across systems whose source code the same IT team controls |
-| 4 | Map the Competition (alternatives) | **Supported, with a caveat** | No alternative puts the rules in one place; ready-made tools were read from documentation, not trialled |
-| 5 | Define Your Edge | **Partly supported** | Why now is strong; why us rests on one part-time developer and management that is aware but has not formally mandated it |
-| 6 | Design a Cheap Test | **Designed, not yet run** | Three pilot flows and pass marks are fixed below |
-| 7 | Stress-Test the Idea | **Risks known, one unresolved** | Nobody yet owns the organization structure |
+All seven steps were carried out. The table separates that from how strong the evidence for each step is.
+
+| # | Step | Done | Strength of evidence | Basis |
+|---|---|---|---|---|
+| 1 | Define the Problem | Yes | **Supported** | Measured in four systems, confirmed by a year of helpdesk tickets and by the project owner |
+| 2 | Profile the Target Customer | Yes | **Supported** | Requesters, approvers and process owners inside the company; tickets come from over sixty people in over twenty departments |
+| 3 | Size the Market (internal opportunity) | Yes | **Supported against the stated target** | Well over twenty thousand approval items a year across systems whose source code the same IT team controls |
+| 4 | Map the Competition (alternatives) | Yes | **Supported, with a caveat** | No alternative puts the rules in one place; ready-made tools were read from documentation, not trialled |
+| 5 | Define Your Edge | Yes | **Partly supported** | Why now is strong; why us rests on one part-time developer and management that is aware but has not formally mandated it |
+| 6 | Design a Cheap Test | Yes | **Test designed; two small checks run** | Three pilot flows with pass marks fixed below; IT colleagues tried the app and a scripted browser test ran. The pilot itself has not run |
+| 7 | Stress-Test the Idea | Yes | **Risks identified and mitigated, one open** | Risk register with mitigations below; nobody yet owns the organization structure |
 
 ## Target user, why now, differentiating angle
 - **Target user:** office staff of one manufacturer who file requests, the managers and function heads who approve
@@ -40,7 +42,8 @@ Three kinds of evidence, kept apart so that a reader can weigh each:
 1. **Measured data** from one year of the company's own systems (HR application, ERP, product-development
    application, IT helpdesk). Exact figures are withheld; the wording below is approximate on purpose.
 2. **A structured interview with the project owner** (in-house IT, the person who receives the approval-related
-   requests), held on 21 November 2026. These are statements, marked as such.
+   requests), held on 21 November 2026. The project owner is the author of this report, so these are first-hand
+   statements from one person, not independent evidence. They are marked as such wherever they are used.
 3. **Published sources**, each re-opened and checked against its quote by a separate checker. They are listed under
    Key sources.
 
@@ -228,9 +231,9 @@ Each source was re-opened and its quote matched before it was listed.
 ## Limits of this validation
 - The measured data comes from one company's systems and is reported without exact figures; outside readers cannot
   check it.
-- The interview is with one person, the project owner in IT. It is first-hand for how changes are handled and
+- The interview is with one person, the project owner in IT, who is also the author. It is first-hand for how changes are handled and
   second-hand for what requesters and approvers experience.
-- No business request has run through Sentinel. Only the IT team has tried it; step 6 is a design.
+- No business request has run through Sentinel. Only the IT team has tried it; the pilot in step 6 is designed and not yet run.
 - Ready-made tools were assessed from documentation only.
-- The readings in the verdict table are the author's, made from the evidence shown here, not an independent
+- The strength-of-evidence readings in the verdict table are the author's, made from the evidence shown here, not an independent
   scoring.

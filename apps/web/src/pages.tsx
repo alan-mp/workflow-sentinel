@@ -558,6 +558,7 @@ const ACTION: Record<string, string> = {
   attachment_added: 'added an attachment',
   erp_synced: 'sent to ERP',
   erp_sync_failed: 'could not be sent to ERP',
+  anomalies_flagged: 'flagged this request for the approver to check',
 };
 const TIMELINE_TONE: Record<string, string> = {
   task_approved: 'ok',
